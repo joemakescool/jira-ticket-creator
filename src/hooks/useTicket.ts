@@ -19,7 +19,8 @@ import {
   DEFAULT_TICKET_INPUT,
 } from '../types/ticket';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use relative URL to go through Vite's proxy in development
+const API_BASE = '/api';
 
 interface UseTicketOptions {
   provider?: string;

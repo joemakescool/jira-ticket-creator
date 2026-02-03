@@ -9,18 +9,20 @@
 //   const claude = LLMFactory.create('claude', { apiKey: '...' });
 //   const response = await claude.generate('Hello!');
 
-export {
+export type {
   LLMProvider,
   LLMMessage,
   LLMCompletionOptions,
   LLMCompletionResult,
   LLMProviderConfig,
   LLMProviderName,
-  LLM_PROVIDERS,
 } from './LLMProvider';
+
+export { LLM_PROVIDERS } from './LLMProvider';
 
 export { LLMFactory } from './LLMFactory';
 
 // Re-export providers for advanced use cases
 export { ClaudeProvider } from './providers/ClaudeProvider';
 export { OpenAIProvider } from './providers/OpenAIProvider';
+export { OllamaProvider } from './providers/OllamaProvider';

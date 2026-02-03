@@ -3,7 +3,7 @@
 
 export { ClaudeProvider } from './ClaudeProvider';
 export { OpenAIProvider } from './OpenAIProvider';
+export { OllamaProvider } from './OllamaProvider';
 
-// Future providers (uncomment when implemented):
+// Future providers:
 // export { GeminiProvider } from './GeminiProvider';
-// export { OllamaProvider } from './OllamaProvider';

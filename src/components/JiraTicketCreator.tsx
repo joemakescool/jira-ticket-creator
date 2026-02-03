@@ -1,54 +1,112 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Copy, Wand2, FileText, Bug, CheckSquare, Zap, Upload, Settings, 
-  ExternalLink, Bold, Italic, Code, List, ListOrdered, 
+import {
+  Copy, Wand2, FileText, Bug, CheckSquare, Zap, Upload, Settings,
+  ExternalLink, Bold, Italic, Code, List, ListOrdered,
   Link2, Quote, Hash, Terminal, Save, FileDown, Keyboard,
   X, AlertCircle, TrendingUp, AlertTriangle, Flame,
-  Layout, LayoutGrid, Edit, RefreshCw
+  Layout, LayoutGrid, Edit, RefreshCw, Server
 } from 'lucide-react';
+import { useTicket } from '../hooks/useTicket';
+import { RefinementStyle } from '../types/ticket';
 
 const JiraTicketCreator = () => {
+  // Provider selection - default fetched from backend
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+
+  // Use the ticket hook with selected provider
+  const {
+    input,
+    generatedTicket: hookGeneratedTicket,
+    editedContent,
+    isGenerating,
+    isRefining,
+    error: ticketError,
+    setInput,
+    setEditedContent,
+    generateTicket: hookGenerateTicket,
+    refineTicket: hookRefineTicket,
+    regenerateTicket: hookRegenerateTicket,
+    generateTitle: hookGenerateTitle,
+    copyToClipboard: hookCopyToClipboard,
+    reset: hookReset,
+  } = useTicket({ provider: selectedProvider, autoCopy: false });
+
   const [ticketData, setTicketData] = useState({
     title: '',
     description: '',
     type: 'Task',
     priority: 'Medium',
     template: 'Basic',
-    labels: []
+    labels: [] as string[]
   });
-  
+
   const [labelInput, setLabelInput] = useState('');
-  const [generatedTicket, setGeneratedTicket] = useState('');
-  const [editedTicket, setEditedTicket] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [activeRefinement, setActiveRefinement] = useState(null);
+  const [activeRefinement, setActiveRefinement] = useState<string | null>(null);
   const [autoGenerateTitle, setAutoGenerateTitle] = useState(true);
   const [autoCopy, setAutoCopy] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [savedTemplates, setSavedTemplates] = useState<unknown[]>([]);
   const [templateName, setTemplateName] = useState('');
-  const [ticketHistory, setTicketHistory] = useState([]);
+  const [ticketHistory, setTicketHistory] = useState<unknown[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
-  const [isRefining, setIsRefining] = useState(false);
-  const [activeField, setActiveField] = useState(null);
+  const [activeField, setActiveField] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [writingTips, setWritingTips] = useState('');
-  const [autoComplete, setAutoComplete] = useState([]);
+  const [autoComplete, setAutoComplete] = useState<string[]>([]);
   const [showAutoComplete, setShowAutoComplete] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [recentLabels, setRecentLabels] = useState([]);
+  const [recentLabels, setRecentLabels] = useState<string[]>([]);
   const [draftSaved, setDraftSaved] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [selectedText, setSelectedText] = useState('');
-  
-  const descriptionRef = useRef(null);
+  const [sessionTime, setSessionTime] = useState(0);
+
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch available providers and default from backend on mount
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        // Use relative URL to go through Vite's proxy in development
+        const response = await fetch('/api/providers');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableProviders(data.providers || []);
+          // Set default from backend (.env DEFAULT_LLM_PROVIDER)
+          if (data.default && !selectedProvider) {
+            setSelectedProvider(data.default);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch providers:', err);
+        // Fallback
+        setAvailableProviders(['claude', 'openai', 'ollama']);
+        if (!selectedProvider) {
+          setSelectedProvider('ollama');
+        }
+      }
+    };
+    fetchProviders();
+  }, []);
+
+  // Sync local ticketData with hook input
+  useEffect(() => {
+    setInput({
+      description: ticketData.description,
+      title: ticketData.title,
+      type: ticketData.type as 'Task' | 'Story' | 'Bug' | 'Spike' | 'Epic',
+      priority: ticketData.priority as 'Low' | 'Medium' | 'High' | 'Critical',
+      labels: ticketData.labels,
+    });
+  }, [ticketData, setInput]);
 
   const commonLabels = [
     'frontend', 'backend', 'api', 'database', 'security', 'performance',
@@ -302,7 +360,7 @@ const JiraTicketCreator = () => {
   };
 
   const copyAsMarkdown = async () => {
-    const ticketContent = editedTicket || generatedTicket;
+    const ticketContent = editedContent || hookGeneratedTicket?.content || '';
     const markdown = `# ${ticketData.title || 'Untitled Ticket'}\n\n**Type:** ${ticketData.type}\n**Priority:** ${ticketData.priority}\n**Labels:** ${ticketData.labels.length > 0 ? ticketData.labels.join(', ') : 'None'}\n\n${ticketContent || ticketData.description}`;
     try {
       await navigator.clipboard.writeText(markdown);
@@ -386,35 +444,10 @@ const JiraTicketCreator = () => {
     }
   };
 
-  const generateTitleFromDescription = async (description) => {
+  const generateTitleFromDescription = async (description: string) => {
     if (!description?.trim() || !autoGenerateTitle) return;
-    
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 50,
-          messages: [
-            {
-              role: "user",
-              content: `Generate a concise JIRA ticket title (max 8 words) for: "${description}". Return only the title.`
-            }
-          ]
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const generatedTitle = data.content[0].text.trim();
-        setTicketData(prev => ({ ...prev, title: generatedTitle }));
-      }
-    } catch (error) {
-      console.log('Title generation failed');
-    }
+    // Title generation is handled by the hook when generateTitle is called
+    await hookGenerateTitle();
   };
 
   const handleDescriptionChange = (e) => {
@@ -432,191 +465,53 @@ const JiraTicketCreator = () => {
   };
 
   const copyToClipboard = async () => {
-    const ticketContent = editedTicket || generatedTicket;
-    try {
-      await navigator.clipboard.writeText(ticketContent);
+    const success = await hookCopyToClipboard();
+    if (success) {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
-      console.error('Copy failed:', err);
+    } else {
       alert('Failed to copy to clipboard. Please try selecting and copying manually.');
     }
   };
 
   const generateTicket = async (regenerate = false) => {
-    setIsGenerating(true);
-    
-    try {
-      const content = regenerate && editedTicket 
-        ? `Improve and refine this JIRA ticket while maintaining its core information:\n${editedTicket}`
-        : `Generate a JIRA ticket with this info:
-Title: ${ticketData.title || 'Untitled'}
-Description: ${ticketData.description || 'No description'}
-Template: ${ticketData.template}
-Priority Level: ${ticketData.priority} (use this to determine urgency in content, but don't include as a field)
-Labels context: ${ticketData.labels.join(', ') || 'None'} (use for context but don't list at top)
-
-Create a well-structured ticket with the following format:
-1. Start with the title as a ## heading
-2. Add a "### Context" section with the background and current situation
-3. Add a "### Expected Outcome" section that includes both the desired result AND specific success criteria as checkboxes (- [ ])
-   - Integrate what would be acceptance criteria directly into the expected outcome
-   - Use checkboxes for measurable/testable outcomes
-   - Do NOT create a separate "Acceptance Criteria" section
-
-${ticketData.template === 'Detailed' ? 'Use detailed template with comprehensive descriptions in each section.' : 'Use basic template with concise Context and Expected Outcome.'}
-Return only the markdown-formatted ticket content.`;
-      
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          messages: [
-            {
-              role: "user",
-              content: content
-            }
-          ]
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const generatedContent = data.content[0].text;
-        setGeneratedTicket(generatedContent);
-        setEditedTicket(generatedContent);
-        setIsEditMode(false);
-        
-        if (autoCopy) {
-          setTimeout(() => copyToClipboard(), 500);
-        }
-      }
-    } catch (error) {
-      console.error("Error generating ticket:", error);
-      
-      // Fallback ticket generation with merged format
-      let ticket = `## ${ticketData.title || 'Untitled'}\n\n`;
-      ticket += `### Context\n`;
-      ticket += `${ticketData.description || 'No description provided'}\n\n`;
-      ticket += `### Expected Outcome\n`;
-      ticket += `The task should achieve the following results:\n\n`;
-      ticket += `- [ ] Primary objective completed successfully\n`;
-      ticket += `- [ ] All quality standards met\n`;
-      ticket += `- [ ] Documentation updated as needed\n`;
-      ticket += `- [ ] Solution tested and verified\n`;
-      
-      setGeneratedTicket(ticket);
-      setEditedTicket(ticket);
-      setIsEditMode(false);
+    if (regenerate) {
+      await hookRegenerateTicket();
+    } else {
+      await hookGenerateTicket();
     }
-    
-    setIsGenerating(false);
+    setIsEditMode(false);
+
+    if (autoCopy && (hookGeneratedTicket || editedContent)) {
+      setTimeout(() => hookCopyToClipboard(), 500);
+    }
   };
 
-  const refineTicket = async (style) => {
-    // Check if there's a ticket to refine
-    const currentTicket = editedTicket || generatedTicket;
-    if (!currentTicket) return;
-    
-    setIsRefining(true);
+  const refineTicket = async (style: string) => {
+    if (!editedContent && !hookGeneratedTicket) return;
+
     setActiveRefinement(style);
-    
-    const refinementPrompts = {
-      'more-concise': `Take this JIRA ticket and make it 40-50% shorter. Remove any redundant words, combine similar points, and keep only essential information. Use bullet points instead of paragraphs where possible. Remove any explanatory text that isn't critical. Keep the Context and Expected Outcome structure but make each section brief and to the point.
 
-Current ticket to make more concise:
-${currentTicket}`,
-      
-      'bit-concise': `Take this JIRA ticket and make it about 20% shorter. Remove redundant phrases and unnecessary words while keeping all important information. Tighten up the language but don't lose any key details. Keep the Context and Expected Outcome structure.
-
-Current ticket to slightly condense:
-${currentTicket}`,
-      
-      'more-detailed': `Take this JIRA ticket and expand it significantly (make it 40-50% longer). Add more context, background information, technical specifications, edge cases, dependencies, risks, and more comprehensive success criteria. Be specific and thorough in all sections.
-
-Current ticket to expand with details:
-${currentTicket}`,
-      
-      'bit-detailed': `Take this JIRA ticket and add about 20% more detail. Clarify any vague points, add a few more success criteria, and provide slightly more context where helpful. Don't overdo it - just fill in gaps.
-
-Current ticket to slightly expand:
-${currentTicket}`,
-      
-      'technical': `Take this JIRA ticket and add significant technical implementation details. Include:
-- Specific technologies, frameworks, or APIs involved
-- Technical architecture considerations
-- Database or data structure changes
-- Performance requirements or constraints
-- Security considerations
-- Technical dependencies
-- Implementation approach
-Keep the Context and Expected Outcome structure but make it technically comprehensive.
-
-Current ticket to make technical:
-${currentTicket}`,
-      
-      'business': `Take this JIRA ticket and rewrite it with a strong business focus. Include:
-- Clear business value and ROI
-- Impact on users/customers
-- Business metrics that will improve
-- Cost savings or revenue impact
-- Strategic alignment
-- Stakeholder benefits
-Frame everything in terms of business outcomes rather than technical tasks.
-
-Current ticket to add business focus:
-${currentTicket}`
+    // Map UI style names to API style names
+    const styleMap: Record<string, RefinementStyle> = {
+      'concise': 'concise',
+      'more-concise': 'concise',
+      'detailed': 'detailed',
+      'more-detailed': 'detailed',
+      'technical': 'technical',
+      'business': 'business',
+      'user-story': 'user-story',
+      'acceptance': 'acceptance',
     };
 
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2500,
-          messages: [
-            {
-              role: "user",
-              content: `${refinementPrompts[style]}
+    const apiStyle = styleMap[style] || 'concise';
+    await hookRefineTicket(apiStyle);
+    setIsEditMode(false);
 
-CRITICAL INSTRUCTIONS:
-1. Maintain the exact format: Title (##), Context section (###), Expected Outcome section (###)
-2. The Expected Outcome MUST include checkboxes (- [ ]) for measurable criteria
-3. Do NOT add any other sections like Acceptance Criteria
-4. Apply the refinement exactly as requested - if making concise, actually reduce length; if adding detail, actually expand
-5. Return ONLY the refined ticket content, no explanations`
-            }
-          ]
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const refinedContent = data.content[0].text.trim();
-        setGeneratedTicket(refinedContent);
-        setEditedTicket(refinedContent);
-        setIsEditMode(false);
-        
-        if (autoCopy) {
-          setTimeout(() => copyToClipboard(), 500);
-        }
-      } else {
-        console.error("API response not ok:", response.status);
-        alert("Failed to refine ticket. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error refining ticket:", error);
-      alert("Failed to refine ticket. Please check your connection and try again.");
+    if (autoCopy && editedContent) {
+      setTimeout(() => hookCopyToClipboard(), 500);
     }
-    
-    setIsRefining(false);
+
     setActiveRefinement(null);
   };
 
@@ -656,13 +551,38 @@ CRITICAL INSTRUCTIONS:
             </div>
 
             <div className="flex items-center justify-center gap-4 flex-wrap">
+              {/* Provider Selector */}
+              <div className="flex items-center gap-2">
+                <Server className={`w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`} />
+                <select
+                  value={selectedProvider}
+                  onChange={(e) => setSelectedProvider(e.target.value)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDarkMode
+                      ? 'bg-slate-800/40 border-slate-700/50 text-white'
+                      : 'bg-white/40 border-white/30 text-slate-800'
+                  }`}
+                >
+                  <option value="claude">Claude</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="ollama">Ollama (Local)</option>
+                  {availableProviders
+                    .filter(p => !['claude', 'openai', 'ollama'].includes(p))
+                    .map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              {/* Progress Bar */}
               <div className="flex items-center gap-2">
                 <div className={`w-32 rounded-full h-3 ${
-                  isDarkMode 
-                    ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50' 
+                  isDarkMode
+                    ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50'
                     : 'bg-white/20 backdrop-blur-xl border-white/30'
                 } border shadow-inner`}>
-                  <div 
+                  <div
                     className="h-3 rounded-full transition-all duration-500 shadow-lg bg-gradient-to-r from-blue-600 to-blue-700"
                     style={{ width: `${calculateProgress()}%` }}
                   ></div>
@@ -1042,14 +962,19 @@ CRITICAL INSTRUCTIONS:
             </div>
 
             <button
-              onClick={generateTicket}
-              disabled={isGenerating || !ticketData.description}
+              onClick={() => generateTicket(false)}
+              disabled={isGenerating || !ticketData.description || !selectedProvider}
               className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 px-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-lg shadow-xl transition-all"
             >
               {isGenerating ? (
                 <>
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                   <span>Generating...</span>
+                </>
+              ) : !selectedProvider ? (
+                <>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  <span>Loading Provider...</span>
                 </>
               ) : (
                 <>
@@ -1070,7 +995,7 @@ CRITICAL INSTRUCTIONS:
               <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
                 Generated Ticket
               </h2>
-              {generatedTicket && (
+              {(hookGeneratedTicket || editedContent) && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => setIsEditMode(!isEditMode)}
@@ -1085,7 +1010,7 @@ CRITICAL INSTRUCTIONS:
                   </button>
                   <button
                     onClick={() => generateTicket(true)}
-                    disabled={isGenerating || !editedTicket}
+                    disabled={isGenerating || !editedContent}
                     className={`bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {isGenerating ? (
@@ -1117,20 +1042,30 @@ CRITICAL INSTRUCTIONS:
               )}
             </div>
 
-            {generatedTicket ? (
+            {(hookGeneratedTicket || editedContent) ? (
               <>
+                {/* Error display */}
+                {ticketError && (
+                  <div className="mb-4 p-4 rounded-xl bg-red-500/20 border border-red-500/50 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5" />
+                      <span>{ticketError}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className={`rounded-xl border ${
-                  isDarkMode 
-                    ? 'bg-slate-800/20 border-slate-700/50' 
+                  isDarkMode
+                    ? 'bg-slate-800/20 border-slate-700/50'
                     : 'bg-white/20 border-white/30'
                 }`}>
                   {isEditMode ? (
                     <textarea
-                      value={editedTicket}
-                      onChange={(e) => setEditedTicket(e.target.value)}
+                      value={editedContent}
+                      onChange={(e) => setEditedContent(e.target.value)}
                       className={`w-full p-6 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        isDarkMode 
-                          ? 'bg-slate-800/40 text-white' 
+                        isDarkMode
+                          ? 'bg-slate-800/40 text-white'
                           : 'bg-white/40 text-slate-800'
                       } resize-none`}
                       rows={20}
@@ -1140,7 +1075,7 @@ CRITICAL INSTRUCTIONS:
                     <pre className={`p-6 text-sm whitespace-pre-wrap font-mono ${
                       isDarkMode ? 'text-white' : 'text-slate-800'
                     }`}>
-                      {editedTicket || generatedTicket}
+                      {editedContent || hookGeneratedTicket?.content}
                     </pre>
                   )}
                 </div>
@@ -1227,23 +1162,34 @@ CRITICAL INSTRUCTIONS:
                 </div>
               </>
             ) : (
-              <div className={`${
-                isDarkMode 
-                  ? 'bg-slate-800/20 border-slate-700/50' 
-                  : 'bg-white/20 border-white/30'
-              } rounded-xl p-12 text-center border-2 border-dashed`}>
-                <FileText className={`w-16 h-16 mx-auto mb-4 ${
-                  isDarkMode ? 'text-slate-400' : 'text-slate-500'
-                }`} />
-                <h3 className={`text-lg font-semibold mb-2 ${
-                  isDarkMode ? 'text-white' : 'text-slate-800'
-                }`}>No ticket generated yet</h3>
-                <p className={`${
-                  isDarkMode ? 'text-slate-400' : 'text-slate-600'
-                }`}>
-                  Fill in the details and click "Generate Ticket"
-                </p>
-              </div>
+              <>
+                {/* Error display for empty state */}
+                {ticketError && (
+                  <div className="mb-4 p-4 rounded-xl bg-red-500/20 border border-red-500/50 text-red-300">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5" />
+                      <span>{ticketError}</span>
+                    </div>
+                  </div>
+                )}
+                <div className={`${
+                  isDarkMode
+                    ? 'bg-slate-800/20 border-slate-700/50'
+                    : 'bg-white/20 border-white/30'
+                } rounded-xl p-12 text-center border-2 border-dashed`}>
+                  <FileText className={`w-16 h-16 mx-auto mb-4 ${
+                    isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                  }`} />
+                  <h3 className={`text-lg font-semibold mb-2 ${
+                    isDarkMode ? 'text-white' : 'text-slate-800'
+                  }`}>No ticket generated yet</h3>
+                  <p className={`${
+                    isDarkMode ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Fill in the details and click "Generate Ticket"
+                  </p>
+                </div>
+              </>
             )}
           </div>
         </div>

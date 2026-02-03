@@ -6,6 +6,7 @@ import {
 } from './LLMProvider';
 import { ClaudeProvider } from './providers/ClaudeProvider';
 import { OpenAIProvider } from './providers/OpenAIProvider';
+import { OllamaProvider } from './providers/OllamaProvider';
 
 /**
  * LLM Factory
@@ -65,7 +66,7 @@ export class LLMFactory {
    * Get the default provider based on environment
    */
   static getDefault(): LLMProvider {
-    const defaultProvider = (process.env.DEFAULT_LLM_PROVIDER || 'claude') as LLMProviderName;
+    const defaultProvider = (process.env.DEFAULT_LLM_PROVIDER || 'ollama') as LLMProviderName;
     return this.createFromEnv(defaultProvider);
   }
 
@@ -114,7 +115,7 @@ export class LLMFactory {
         throw new Error('Gemini provider not yet implemented');
       
       case LLM_PROVIDERS.OLLAMA:
-        throw new Error('Ollama provider not yet implemented');
+        return new OllamaProvider(config);
       
       default:
         throw new Error(`Unknown LLM provider: ${name}`);
