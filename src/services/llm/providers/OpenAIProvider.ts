@@ -5,8 +5,25 @@ import {
   LLMCompletionResult,
   LLMProviderConfig,
   HealthCheckResult,
-} from '../LLMProvider';
-import { fetchWithTimeout, LLMApiError } from '../utils/fetchWithTimeout';
+} from '../LLMProvider.js';
+import { fetchWithTimeout, LLMApiError } from '../utils/fetchWithTimeout.js';
+
+/** OpenAI API response types */
+interface OpenAIResponse {
+  choices: Array<{
+    message?: { content: string };
+    finish_reason: string;
+  }>;
+  model: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
+}
+
+interface OpenAIErrorResponse {
+  error?: { message: string };
+}
 
 /**
  * OpenAI Provider Implementation
@@ -69,12 +86,12 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
+      const errorBody = await response.json().catch(() => ({})) as OpenAIErrorResponse;
       const errorMessage = errorBody.error?.message || `HTTP ${response.status}`;
       throw new LLMApiError(this.name, response.status, errorMessage);
     }
 
-    const data = await response.json();
+    const data = await response.json() as OpenAIResponse;
     const choice = data.choices[0];
 
     return {

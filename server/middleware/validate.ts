@@ -6,8 +6,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema, ZodError } from 'zod';
-import { logger } from '../lib/logger';
+import { ZodSchema, ZodError, ZodIssue } from 'zod';
+import { logger } from '../lib/logger.js';
 
 /**
  * Creates validation middleware for a given Zod schema
@@ -24,9 +24,9 @@ export function validate<T>(schema: ZodSchema<T>) {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const errors = error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message,
+        const errors = error.issues.map((issue: ZodIssue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
         }));
 
         logger.warn({ errors, body: req.body }, 'Validation failed');

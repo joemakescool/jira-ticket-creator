@@ -1,1 +1,1 @@
-export { TicketService, ticketService } from './TicketService';
+export { TicketService, ticketService } from './TicketService.js';

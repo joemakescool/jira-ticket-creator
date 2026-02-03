@@ -17,13 +17,13 @@ export type {
   LLMProviderConfig,
   LLMProviderName,
   HealthCheckResult,
-} from './LLMProvider';
+} from './LLMProvider.js';
 
-export { LLM_PROVIDERS } from './LLMProvider';
+export { LLM_PROVIDERS } from './LLMProvider.js';
 
-export { LLMFactory } from './LLMFactory';
+export { LLMFactory } from './LLMFactory.js';
 
 // Re-export providers for advanced use cases
-export { ClaudeProvider } from './providers/ClaudeProvider';
-export { OpenAIProvider } from './providers/OpenAIProvider';
-export { OllamaProvider } from './providers/OllamaProvider';
+export { ClaudeProvider } from './providers/ClaudeProvider.js';
+export { OpenAIProvider } from './providers/OpenAIProvider.js';
+export { OllamaProvider } from './providers/OllamaProvider.js';

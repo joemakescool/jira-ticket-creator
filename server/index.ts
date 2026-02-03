@@ -14,10 +14,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-import routes from './routes';
-import { LLMFactory } from '../src/services/llm';
-import { serverLogger as logger } from './lib/logger';
+import routes from './routes/index.js';
+import { LLMFactory } from '../src/services/llm/index.js';
+import { serverLogger as logger } from './lib/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 config();
@@ -83,9 +88,24 @@ app.use('/api/', limiter);
 
 app.use('/api', routes);
 
+// --- Static Files (Production) ---
+
+if (!isDev) {
+  // In production, __dirname is dist/server/server, so go up two levels to dist/client
+  const clientPath = path.join(__dirname, '../../client');
+
+  // Serve static files from the built frontend
+  app.use(express.static(clientPath));
+
+  // SPA fallback: serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientPath, 'index.html'));
+  });
+}
+
 // --- Error Handling ---
 
-// 404 handler
+// 404 handler (only for API routes in production, all routes in dev)
 app.use((req, res) => {
   logger.debug({ path: req.path, method: req.method }, 'Route not found');
   res.status(404).json({ error: 'Not found' });

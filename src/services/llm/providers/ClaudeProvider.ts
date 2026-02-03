@@ -5,8 +5,23 @@ import {
   LLMCompletionResult,
   LLMProviderConfig,
   HealthCheckResult,
-} from '../LLMProvider';
-import { fetchWithTimeout, LLMApiError } from '../utils/fetchWithTimeout';
+} from '../LLMProvider.js';
+import { fetchWithTimeout, LLMApiError } from '../utils/fetchWithTimeout.js';
+
+/** Claude API response types */
+interface ClaudeResponse {
+  content: Array<{ type: string; text: string }>;
+  model: string;
+  stop_reason: string;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+}
+
+interface ClaudeErrorResponse {
+  error?: { message: string };
+}
 
 /**
  * Claude Provider Implementation
@@ -77,13 +92,13 @@ export class ClaudeProvider implements LLMProvider {
     }
 
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
+      const errorBody = await response.json().catch(() => ({})) as ClaudeErrorResponse;
       // Sanitize error message to avoid leaking sensitive info
       const errorMessage = errorBody.error?.message || `HTTP ${response.status}`;
       throw new LLMApiError(this.name, response.status, errorMessage);
     }
 
-    const data = await response.json();
+    const data = await response.json() as ClaudeResponse;
 
     return {
       content: data.content[0]?.text || '',

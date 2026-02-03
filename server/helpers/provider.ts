@@ -4,7 +4,7 @@
  * Resolves LLM provider from request or environment
  */
 
-import { LLMFactory, LLM_PROVIDERS, LLMProviderName } from '../../src/services/llm';
+import { LLMFactory, LLM_PROVIDERS, LLMProviderName } from '../../src/services/llm/index.js';
 
 export function getProvider(providerName?: string) {
   const name = (providerName || process.env.DEFAULT_LLM_PROVIDER || 'ollama') as LLMProviderName;

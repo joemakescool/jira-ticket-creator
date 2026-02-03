@@ -23,7 +23,7 @@ export type RefinementStyle =
  * Input for creating/generating a ticket
  */
 export interface TicketInput {
-  title: string;
+  title?: string;
   description: string;
   type: TicketType;
   priority: TicketPriority;

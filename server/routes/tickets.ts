@@ -6,10 +6,10 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { TicketService } from '../../src/services/ticket/TicketService';
-import { getProvider } from '../helpers/provider';
-import { validate } from '../middleware/validate';
-import { ticketLogger as logger } from '../lib/logger';
+import { TicketService } from '../../src/services/ticket/TicketService.js';
+import { getProvider } from '../helpers/provider.js';
+import { validate } from '../middleware/validate.js';
+import { ticketLogger as logger } from '../lib/logger.js';
 import {
   generateTicketSchema,
   refineTicketSchema,
@@ -19,7 +19,7 @@ import {
   RefineTicketInput,
   RegenerateTicketInput,
   GenerateTitleInput,
-} from '../validation/schemas';
+} from '../validation/schemas.js';
 
 const router = Router();
 const ticketService = new TicketService();

@@ -5,8 +5,21 @@ import {
   LLMCompletionResult,
   LLMProviderConfig,
   HealthCheckResult,
-} from '../LLMProvider';
-import { fetchWithTimeout, LLMApiError } from '../utils/fetchWithTimeout';
+} from '../LLMProvider.js';
+import { fetchWithTimeout, LLMApiError } from '../utils/fetchWithTimeout.js';
+
+/** Ollama API response types */
+interface OllamaChatResponse {
+  message?: { content: string };
+  model?: string;
+  done: boolean;
+  prompt_eval_count?: number;
+  eval_count?: number;
+}
+
+interface OllamaTagsResponse {
+  models?: Array<{ name: string }>;
+}
 
 /**
  * Ollama Provider Implementation
@@ -87,7 +100,7 @@ export class OllamaProvider implements LLMProvider {
       throw new LLMApiError(this.name, response.status, errorText);
     }
 
-    const data = await response.json();
+    const data = await response.json() as OllamaChatResponse;
 
     return {
       content: data.message?.content || '',
@@ -121,8 +134,8 @@ export class OllamaProvider implements LLMProvider {
         };
       }
 
-      const data = await response.json();
-      const models = data.models?.map((m: { name: string }) => m.name) || [];
+      const data = await response.json() as OllamaTagsResponse;
+      const models = data.models?.map(m => m.name) || [];
 
       return {
         healthy: true,
@@ -153,7 +166,7 @@ export class OllamaProvider implements LLMProvider {
       throw new LLMApiError(this.name, response.status, 'Failed to list models');
     }
 
-    const data = await response.json();
-    return data.models?.map((m: { name: string }) => m.name) || [];
+    const data = await response.json() as OllamaTagsResponse;
+    return data.models?.map(m => m.name) || [];
   }
 }

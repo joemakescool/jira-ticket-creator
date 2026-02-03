@@ -3,10 +3,10 @@ import {
   LLMProviderConfig,
   LLMProviderName,
   LLM_PROVIDERS,
-} from './LLMProvider';
-import { ClaudeProvider } from './providers/ClaudeProvider';
-import { OpenAIProvider } from './providers/OpenAIProvider';
-import { OllamaProvider } from './providers/OllamaProvider';
+} from './LLMProvider.js';
+import { ClaudeProvider } from './providers/ClaudeProvider.js';
+import { OpenAIProvider } from './providers/OpenAIProvider.js';
+import { OllamaProvider } from './providers/OllamaProvider.js';
 
 /**
  * LLM Factory

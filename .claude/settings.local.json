@@ -5,7 +5,13 @@
       "Bash(npx tsc:*)",
       "Bash(timeout 5 npm run dev:server:*)",
       "Bash(npm run build:*)",
-      "Bash(npx vite build)"
+      "Bash(npx vite build)",
+      "Bash(git rm:*)",
+      "Bash(cmd /c \"cd /d c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator && set NODE_ENV=production && set PORT=5050 && node dist/server/server/index.js\")",
+      "Bash(cmd /c \"cd /d c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator && dir dist\\\\server\\\\server\\\\index.js\")",
+      "Bash(NODE_ENV=production PORT=5050 node:*)",
+      "Bash(npm run build:server:*)",
+      "Bash(curl:*)"
     ]
   }
 }

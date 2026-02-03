@@ -9,18 +9,18 @@
  * Dependency Inversion: Depends on LLMProvider interface, not implementations
  */
 
-import { LLMProvider } from '../llm/LLMProvider';
+import { LLMProvider } from '../llm/LLMProvider.js';
 import {
   TicketInput,
   GeneratedTicket,
   RefinementStyle,
-} from '../../types/ticket';
+} from '../../types/ticket.js';
 import {
   SYSTEM_PROMPT,
   buildTicketPrompt,
   buildTitlePrompt,
   buildRefinementPrompt,
-} from '../../prompts/ticketPrompts';
+} from '../../prompts/ticketPrompts.js';
 
 export interface TicketServiceConfig {
   defaultMaxTokens?: number;

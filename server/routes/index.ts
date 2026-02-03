@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import { LLMFactory } from '../../src/services/llm';
-import ticketRoutes from './tickets';
+import { LLMFactory } from '../../src/services/llm/index.js';
+import ticketRoutes from './tickets.js';
 
 const router = Router();
 
