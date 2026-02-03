@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(timeout 5 npm run dev:server:*)"
+      "Bash(timeout 5 npm run dev:server:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx vite build)"
     ]
   }
 }

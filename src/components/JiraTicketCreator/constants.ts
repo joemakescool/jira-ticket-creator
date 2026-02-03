@@ -1,0 +1,56 @@
+/**
+ * Constants for JiraTicketCreator
+ * Centralized configuration for reusability
+ */
+
+import { CheckSquare, FileText, Bug, Zap, Upload, TrendingUp, AlertCircle, AlertTriangle, Flame, Layout, LayoutGrid } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+export const COMMON_LABELS = [
+  'frontend', 'backend', 'api', 'database', 'security', 'performance',
+  'ui', 'ux', 'testing', 'documentation', 'refactor', 'hotfix',
+  'feature', 'improvement', 'tech-debt', 'integration', 'mobile',
+  'web', 'authentication', 'authorization', 'deployment', 'monitoring'
+] as const;
+
+export interface TicketTypeConfig {
+  value: 'Task' | 'Story' | 'Bug' | 'Spike' | 'Epic';
+  icon: LucideIcon;
+  color: string;
+}
+
+export const TICKET_TYPES: TicketTypeConfig[] = [
+  { value: 'Task', icon: CheckSquare, color: 'blue' },
+  { value: 'Story', icon: FileText, color: 'green' },
+  { value: 'Bug', icon: Bug, color: 'red' },
+  { value: 'Spike', icon: Zap, color: 'purple' },
+  { value: 'Epic', icon: Upload, color: 'orange' }
+];
+
+export interface PriorityConfig {
+  name: 'Low' | 'Medium' | 'High' | 'Critical';
+  icon: LucideIcon;
+  color: string;
+}
+
+export const PRIORITIES: PriorityConfig[] = [
+  { name: 'Low', icon: TrendingUp, color: 'green' },
+  { name: 'Medium', icon: AlertCircle, color: 'yellow' },
+  { name: 'High', icon: AlertTriangle, color: 'orange' },
+  { name: 'Critical', icon: Flame, color: 'red' }
+];
+
+export interface TemplateConfig {
+  name: 'Basic' | 'Detailed';
+  icon: LucideIcon;
+  description: string;
+}
+
+export const TEMPLATES: TemplateConfig[] = [
+  { name: 'Basic', icon: Layout, description: 'Simple & concise' },
+  { name: 'Detailed', icon: LayoutGrid, description: 'Comprehensive details' }
+];
+
+export const DRAFT_SAVE_DELAY = 2000;
+export const TITLE_GENERATION_DELAY = 1000;
+export const MIN_DESCRIPTION_FOR_TITLE = 20;
