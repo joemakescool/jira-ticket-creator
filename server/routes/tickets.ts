@@ -2,17 +2,24 @@
  * Ticket Routes
  *
  * All /api/tickets/* endpoints
+ * Now with Zod validation middleware
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { TicketService } from '../../src/services/ticket/TicketService';
-import {
-  GenerateTicketRequest,
-  RefineTicketRequest,
-  GenerateTitleRequest,
-  RefinementStyle,
-} from '../../src/types/ticket';
 import { getProvider } from '../helpers/provider';
+import { validate } from '../middleware/validate';
+import { ticketLogger as logger } from '../lib/logger';
+import {
+  generateTicketSchema,
+  refineTicketSchema,
+  regenerateTicketSchema,
+  generateTitleSchema,
+  GenerateTicketInput,
+  RefineTicketInput,
+  RegenerateTicketInput,
+  GenerateTitleInput,
+} from '../validation/schemas';
 
 const router = Router();
 const ticketService = new TicketService();
@@ -20,100 +27,121 @@ const ticketService = new TicketService();
 /**
  * Generate a ticket
  */
-router.post('/generate', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { input, provider: providerName } = req.body as GenerateTicketRequest;
+router.post(
+  '/generate',
+  validate(generateTicketSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    try {
+      const { input, provider: providerName } = req.body as GenerateTicketInput;
 
-    if (!input?.description) {
-      return res.status(400).json({ error: 'Description is required' });
+      logger.info({ provider: providerName, type: input.type }, 'Generating ticket');
+
+      const provider = getProvider(providerName);
+      const ticket = await ticketService.generateTicket(input, provider);
+
+      const duration = Date.now() - startTime;
+      logger.info({ provider: providerName, duration }, 'Ticket generated successfully');
+
+      res.json({
+        success: true,
+        data: ticket,
+      });
+    } catch (error) {
+      logger.error({ error, duration: Date.now() - startTime }, 'Ticket generation failed');
+      next(error);
     }
-
-    const provider = getProvider(providerName);
-    const ticket = await ticketService.generateTicket(input, provider);
-
-    res.json({
-      success: true,
-      data: ticket,
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 /**
  * Refine an existing ticket
  */
-router.post('/refine', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { currentTicket, style, provider: providerName } = req.body as RefineTicketRequest;
+router.post(
+  '/refine',
+  validate(refineTicketSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    try {
+      const { currentTicket, style, provider: providerName } = req.body as RefineTicketInput;
 
-    if (!currentTicket) {
-      return res.status(400).json({ error: 'Current ticket content is required' });
+      logger.info({ provider: providerName, style }, 'Refining ticket');
+
+      const provider = getProvider(providerName);
+      const refined = await ticketService.refineTicket(currentTicket, style, provider);
+
+      const duration = Date.now() - startTime;
+      logger.info({ provider: providerName, style, duration }, 'Ticket refined successfully');
+
+      res.json({
+        success: true,
+        data: { content: refined },
+      });
+    } catch (error) {
+      logger.error({ error, duration: Date.now() - startTime }, 'Ticket refinement failed');
+      next(error);
     }
-
-    const validStyles: RefinementStyle[] = [
-      'concise', 'detailed', 'technical', 'business', 'user-story', 'acceptance'
-    ];
-    if (!validStyles.includes(style)) {
-      return res.status(400).json({ error: `Invalid style. Must be one of: ${validStyles.join(', ')}` });
-    }
-
-    const provider = getProvider(providerName);
-    const refined = await ticketService.refineTicket(currentTicket, style, provider);
-
-    res.json({
-      success: true,
-      data: { content: refined },
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 /**
  * Regenerate a ticket (after edits)
  */
-router.post('/regenerate', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { currentTicket, provider: providerName } = req.body;
+router.post(
+  '/regenerate',
+  validate(regenerateTicketSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    try {
+      const { currentTicket, provider: providerName } = req.body as RegenerateTicketInput;
 
-    if (!currentTicket) {
-      return res.status(400).json({ error: 'Current ticket content is required' });
+      logger.info({ provider: providerName }, 'Regenerating ticket');
+
+      const provider = getProvider(providerName);
+      const regenerated = await ticketService.regenerateTicket(currentTicket, provider);
+
+      const duration = Date.now() - startTime;
+      logger.info({ provider: providerName, duration }, 'Ticket regenerated successfully');
+
+      res.json({
+        success: true,
+        data: { content: regenerated },
+      });
+    } catch (error) {
+      logger.error({ error, duration: Date.now() - startTime }, 'Ticket regeneration failed');
+      next(error);
     }
-
-    const provider = getProvider(providerName);
-    const regenerated = await ticketService.regenerateTicket(currentTicket, provider);
-
-    res.json({
-      success: true,
-      data: { content: regenerated },
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 /**
  * Generate a title from description
  */
-router.post('/title', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { description, provider: providerName } = req.body as GenerateTitleRequest;
+router.post(
+  '/title',
+  validate(generateTitleSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    try {
+      const { description, provider: providerName } = req.body as GenerateTitleInput;
 
-    if (!description) {
-      return res.status(400).json({ error: 'Description is required' });
+      logger.debug({ provider: providerName }, 'Generating title');
+
+      const provider = getProvider(providerName);
+      const title = await ticketService.generateTitle(description, provider);
+
+      const duration = Date.now() - startTime;
+      logger.debug({ provider: providerName, duration }, 'Title generated');
+
+      res.json({
+        success: true,
+        data: { title },
+      });
+    } catch (error) {
+      logger.error({ error, duration: Date.now() - startTime }, 'Title generation failed');
+      next(error);
     }
-
-    const provider = getProvider(providerName);
-    const title = await ticketService.generateTitle(description, provider);
-
-    res.json({
-      success: true,
-      data: { title },
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 export default router;

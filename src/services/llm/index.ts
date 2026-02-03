@@ -16,6 +16,7 @@ export type {
   LLMCompletionResult,
   LLMProviderConfig,
   LLMProviderName,
+  HealthCheckResult,
 } from './LLMProvider';
 
 export { LLM_PROVIDERS } from './LLMProvider';

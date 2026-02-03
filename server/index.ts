@@ -17,27 +17,65 @@ import { config } from 'dotenv';
 
 import routes from './routes';
 import { LLMFactory } from '../src/services/llm';
+import { serverLogger as logger } from './lib/logger';
 
 // Load environment variables
 config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isDev = process.env.NODE_ENV !== 'production';
 
 // --- Middleware ---
 
-app.use(helmet()); // Security headers
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-}));
+// Security headers (relaxed for API usage)
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // APIs don't serve HTML
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// CORS configuration
+const corsOrigin = process.env.CORS_ORIGIN || (isDev ? 'http://localhost:3000' : undefined);
+if (!corsOrigin && !isDev) {
+  logger.warn('CORS_ORIGIN not set in production - CORS will be restrictive');
+}
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
+
+// Request parsing with size limits
 app.use(express.json({ limit: '10kb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const startTime = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    logger.info(
+      {
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        duration,
+      },
+      'Request completed'
+    );
+  });
+  next();
+});
 
 // --- Rate limiting ---
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100,
   message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
@@ -49,26 +87,71 @@ app.use('/api', routes);
 
 // 404 handler
 app.use((req, res) => {
+  logger.debug({ path: req.path, method: req.method }, 'Route not found');
   res.status(404).json({ error: 'Not found' });
 });
 
+// Custom error class for API errors
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number = 500,
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 // Global error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error('API Error:', err);
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  // Handle known API errors
+  if (err instanceof ApiError) {
+    logger.warn({ error: err, path: req.path }, 'API error');
+    return res.status(err.statusCode).json({
+      error: err.message,
+      code: err.code,
+    });
+  }
 
-  const isDev = process.env.NODE_ENV === 'development';
+  // Handle standard errors
+  const error = err instanceof Error ? err : new Error(String(err));
 
+  // Log the full error server-side
+  logger.error(
+    {
+      error: {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      },
+      path: req.path,
+      method: req.method,
+    },
+    'Unhandled error'
+  );
+
+  // Don't leak error details in production
   res.status(500).json({
-    error: isDev ? err.message : 'Internal server error',
-    ...(isDev && { stack: err.stack }),
+    error: isDev ? error.message : 'Internal server error',
+    ...(isDev && { stack: error.stack }),
   });
 });
 
 // --- Start Server ---
 
 app.listen(PORT, () => {
-  console.log(`🚀 JIRA Ticket Creator API running on port ${PORT}`);
-  console.log(`📦 Available providers: ${LLMFactory.getAvailableProviders().join(', ') || 'None configured'}`);
+  const providers = LLMFactory.getAvailableProviders();
+
+  logger.info(
+    {
+      port: PORT,
+      env: process.env.NODE_ENV || 'development',
+      providers: providers.length > 0 ? providers : ['none configured'],
+    },
+    'Server started'
+  );
 });
 
+export { ApiError };
 export default app;
