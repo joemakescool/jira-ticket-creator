@@ -53,7 +53,7 @@ export const TicketTypeSelector = memo(function TicketTypeSelector({
             <button
               key={type.value}
               onClick={() => onChange(type.value)}
-              className={`px-2 py-2 rounded-lg border-2 transition-all duration-200 ${getTypeStyles(
+              className={`px-2 py-2 rounded-lg border-2 transition-all duration-200 press-effect ${getTypeStyles(
                 type.value,
                 isSelected,
               )}`}

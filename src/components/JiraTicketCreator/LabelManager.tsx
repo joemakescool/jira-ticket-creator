@@ -80,7 +80,7 @@ export const LabelManager = memo(function LabelManager({
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Add label (press Enter)"
-          className="flex-1 px-4 py-2 text-sm border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
+          className="flex-1 px-4 py-2 text-sm border-2 rounded-lg focus:outline-none focus-glow bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
         />
         <button
           onClick={handleAdd}

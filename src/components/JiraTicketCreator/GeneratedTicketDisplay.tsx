@@ -127,7 +127,7 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
               <textarea
                 value={editedContent}
                 onChange={(e) => onContentChange(e.target.value)}
-                className="w-full p-6 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white/40 text-slate-800 dark:bg-slate-800/40 dark:text-white resize-none"
+                className="w-full p-6 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus-glow border-2 border-transparent bg-white/40 text-slate-800 dark:bg-slate-800/40 dark:text-white resize-none"
                 rows={20}
                 placeholder="Edit your ticket here..."
               />

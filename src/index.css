@@ -1,3 +1,104 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom scrollbar */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+    transition: background 0.2s;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+
+  .dark *::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.4);
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.6);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* Focus glow animation for inputs */
+@layer utilities {
+  .focus-glow {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .focus-glow:focus {
+    @apply ring-2 ring-blue-500/40 border-blue-500/60 shadow-[0_0_12px_rgba(59,130,246,0.15)];
+  }
+
+  .dark .focus-glow:focus {
+    @apply ring-blue-400/30 border-blue-400/50 shadow-[0_0_12px_rgba(96,165,250,0.1)];
+  }
+}
+
+/* Dropdown slide animations */
+@keyframes dropdown-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dropdown-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.dropdown-enter {
+  animation: dropdown-slide-in 0.12s ease-out forwards;
+}
+
+.dropdown-exit {
+  animation: dropdown-slide-out 0.12s ease-in forwards;
+}
+
+/* Selector button press effect */
+@layer utilities {
+  .press-effect {
+    @apply transition-all duration-150 ease-out;
+  }
+
+  .press-effect:active {
+    transform: scale(0.97);
+  }
+}

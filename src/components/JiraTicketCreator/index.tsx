@@ -277,7 +277,7 @@ export function JiraTicketCreator() {
 
       <div className="relative z-10 max-w-7xl mx-auto p-4 space-y-4">
         {/* Header */}
-        <header className="mb-2">
+        <header className="mb-2 relative z-20">
           <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl p-4 shadow-lg border">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ export function JiraTicketCreator() {
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder={autoGenerateTitle ? "Auto-generated from description..." : "e.g., Fix user login timeout"}
                 maxLength={100}
-                className="w-full px-4 py-2 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
+                className="w-full px-4 py-2 border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
               />
             </div>
 
