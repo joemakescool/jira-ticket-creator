@@ -11,7 +11,9 @@
       "Bash(cmd /c \"cd /d c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator && dir dist\\\\server\\\\server\\\\index.js\")",
       "Bash(NODE_ENV=production PORT=5050 node:*)",
       "Bash(npm run build:server:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npm run lint:*)"
     ]
   }
 }

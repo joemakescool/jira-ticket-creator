@@ -15,7 +15,6 @@ interface DescriptionEditorProps {
   draftSaved: boolean;
   onLoadDraft: () => void;
   onClearDraft: () => void;
-  isDarkMode?: boolean;
 }
 
 const MARKDOWN_INSERTIONS: Record<MarkdownAction, { template: string; placeholder: string; cursorOffset: number }> = {
@@ -40,7 +39,6 @@ export const DescriptionEditor = memo(function DescriptionEditor({
   draftSaved,
   onLoadDraft,
   onClearDraft,
-  isDarkMode = true
 }: DescriptionEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -82,15 +80,15 @@ export const DescriptionEditor = memo(function DescriptionEditor({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1.5">
         <label
           htmlFor="description-input"
-          className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+          className="text-sm font-semibold text-slate-800 dark:text-white"
         >
           Description
         </label>
         <div className="flex items-center gap-2">
-          <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             {charCount} chars &bull; {wordCount} words
           </span>
           {draftSaved && (
@@ -104,11 +102,7 @@ export const DescriptionEditor = memo(function DescriptionEditor({
 
       {/* Markdown Toolbar */}
       <div
-        className={`flex flex-wrap items-center gap-1 p-2 mb-2 rounded-lg border ${
-          isDarkMode
-            ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50'
-            : 'bg-white/20 backdrop-blur-xl border-white/30'
-        }`}
+        className="flex flex-wrap items-center gap-1 p-1.5 mb-2 rounded-lg border bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50"
         role="toolbar"
         aria-label="Text formatting"
       >
@@ -116,9 +110,7 @@ export const DescriptionEditor = memo(function DescriptionEditor({
           <button
             key={action}
             onClick={() => insertMarkdown(action)}
-            className={`p-1.5 rounded hover:bg-slate-700/30 transition-all ${
-              isDarkMode ? 'text-slate-300' : 'text-slate-600'
-            }`}
+            className="p-1.5 rounded hover:bg-slate-700/30 transition-all text-slate-600 dark:text-slate-300"
             aria-label={label}
             type="button"
           >
@@ -128,9 +120,7 @@ export const DescriptionEditor = memo(function DescriptionEditor({
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={onLoadDraft}
-            className={`p-1.5 rounded hover:bg-slate-700/30 transition-all ${
-              isDarkMode ? 'text-slate-300' : 'text-slate-600'
-            }`}
+            className="p-1.5 rounded hover:bg-slate-700/30 transition-all text-slate-600 dark:text-slate-300"
             aria-label="Load saved draft"
             type="button"
           >
@@ -138,9 +128,7 @@ export const DescriptionEditor = memo(function DescriptionEditor({
           </button>
           <button
             onClick={onClearDraft}
-            className={`px-2 py-1 text-xs rounded hover:bg-slate-700/30 transition-all ${
-              isDarkMode ? 'text-slate-300' : 'text-slate-600'
-            }`}
+            className="px-2 py-1 text-xs rounded hover:bg-slate-700/30 transition-all text-slate-600 dark:text-slate-300"
             type="button"
           >
             Clear
@@ -154,12 +142,8 @@ export const DescriptionEditor = memo(function DescriptionEditor({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Describe the problem, feature request, or task..."
-        rows={5}
-        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-          isDarkMode
-            ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50 text-white placeholder-slate-400'
-            : 'bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500'
-        } resize-none font-mono text-sm`}
+        rows={3}
+        className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400 resize-none font-mono text-sm"
       />
     </div>
   );

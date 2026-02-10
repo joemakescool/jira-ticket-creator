@@ -29,7 +29,7 @@ export const Toast = memo(function Toast({ message, type = 'success', onClose }:
 
   return (
     <div
-      className={`fixed top-6 right-6 backdrop-blur-xl text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce z-50 border border-white/20 ${styles[type]}`}
+      className={`fixed top-6 right-6 backdrop-blur-xl text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce z-50 border border-white/20 dark:border-white/10 dark:shadow-black/30 ${styles[type]}`}
       role="alert"
       aria-live="polite"
     >

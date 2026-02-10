@@ -5,17 +5,20 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Wand2 } from 'lucide-react';
+import { FileText, Wand2, Sun, Moon } from 'lucide-react';
 import { useTicket } from '../../hooks/useTicket';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { RefinementStyle } from '../../types/ticket';
 import type { TicketFormData } from './types';
 import { DEFAULT_TICKET_DATA } from './types';
+import { TITLE_GENERATION_DELAY, MIN_DESCRIPTION_FOR_TITLE } from './constants';
 
 // Sub-components
 import { DescriptionEditor } from './DescriptionEditor';
 import { TicketTypeSelector } from './TicketTypeSelector';
 import { PrioritySelector } from './PrioritySelector';
 import { TemplateSelector } from './TemplateSelector';
+import { WritingStyleSelector } from './WritingStyleSelector';
 import { LabelManager } from './LabelManager';
 import { GeneratedTicketDisplay } from './GeneratedTicketDisplay';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
@@ -24,6 +27,8 @@ import { Toast } from '../ui/Toast';
 import { useDraft } from './hooks/useDraft';
 
 export function JiraTicketCreator() {
+  const { isDarkMode, toggleTheme } = useTheme();
+
   // Provider selection
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
@@ -47,10 +52,9 @@ export function JiraTicketCreator() {
   // Form state
   const [ticketData, setTicketData] = useState<TicketFormData>(DEFAULT_TICKET_DATA);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [autoGenerateTitle] = useState(true);
-  const [autoCopy] = useState(true);
+  const autoGenerateTitle = true;
+  const autoCopy = true;
   const [copySuccess, setCopySuccess] = useState(false);
-  const [isDarkMode] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [wordCount, setWordCount] = useState(0);
 
@@ -91,6 +95,7 @@ export function JiraTicketCreator() {
       type: ticketData.type as 'Task' | 'Story' | 'Bug' | 'Spike' | 'Epic',
       priority: ticketData.priority as 'Low' | 'Medium' | 'High' | 'Critical',
       labels: ticketData.labels,
+      writingStyle: ticketData.writingStyle,
     });
   }, [ticketData, setInput]);
 
@@ -161,10 +166,10 @@ export function JiraTicketCreator() {
       clearTimeout(titleGenerationTimeoutRef.current);
     }
 
-    if (autoGenerateTitle && value.length > 20) {
+    if (autoGenerateTitle && value.length > MIN_DESCRIPTION_FOR_TITLE) {
       titleGenerationTimeoutRef.current = setTimeout(() => {
         hookGenerateTitle();
-      }, 1000);
+      }, TITLE_GENERATION_DELAY);
     }
   }, [autoGenerateTitle, hookGenerateTitle]);
 
@@ -182,6 +187,10 @@ export function JiraTicketCreator() {
 
   const handleTemplateChange = useCallback((template: string) => {
     setTicketData(prev => ({ ...prev, template: template as TicketFormData['template'] }));
+  }, []);
+
+  const handleWritingStyleChange = useCallback((style: RefinementStyle | undefined) => {
+    setTicketData(prev => ({ ...prev, writingStyle: style }));
   }, []);
 
   const handleAddLabel = useCallback((label: string) => {
@@ -217,16 +226,7 @@ export function JiraTicketCreator() {
   const handleRefineTicket = useCallback(async (style: string) => {
     if (!editedContent && !generatedTicket) return;
 
-    const styleMap: Record<string, RefinementStyle> = {
-      'concise': 'concise',
-      'detailed': 'detailed',
-      'technical': 'technical',
-      'business': 'business',
-      'user-story': 'user-story',
-      'acceptance': 'acceptance',
-    };
-
-    const apiStyle = styleMap[style] || 'concise';
+    const apiStyle = (style as RefinementStyle) || 'concise';
     await hookRefineTicket(apiStyle);
     setIsEditMode(false);
 
@@ -268,57 +268,45 @@ export function JiraTicketCreator() {
   }, [clearDraft]);
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br ${
-      isDarkMode
-        ? 'from-slate-900 via-blue-900 to-slate-900'
-        : 'from-blue-50 via-cyan-50 to-blue-100'
-    } relative overflow-hidden`}>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 dark:from-slate-900 dark:via-blue-900 dark:to-slate-900 relative overflow-hidden">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-blue-600 to-blue-700 opacity-10 rounded-full blur-3xl transform rotate-12" />
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-blue-500 to-cyan-600 opacity-10 rounded-full blur-3xl transform -rotate-12" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto p-8 space-y-8">
+      <div className="relative z-10 max-w-7xl mx-auto p-4 space-y-4">
         {/* Header */}
-        <header className="text-center mb-12">
-          <div className={`${
-            isDarkMode
-              ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50'
-              : 'bg-white/20 backdrop-blur-xl border-white/30'
-          } rounded-3xl p-8 shadow-2xl border`}>
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="p-4 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-xl">
-                <FileText className="w-8 h-8 text-white" aria-hidden="true" />
+        <header className="mb-2">
+          <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl p-4 shadow-lg border">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-md">
+                  <FileText className="w-5 h-5 text-white" aria-hidden="true" />
+                </div>
+                <h1 className="text-xl font-bold text-slate-800 dark:text-white">JIRA Ticket Creator</h1>
               </div>
-              <div className="text-left">
-                <h1 className={`text-5xl font-bold mb-2 ${
-                  isDarkMode ? 'text-white' : 'text-slate-800'
-                }`}>JIRA Ticket Creator</h1>
-                <p className={`text-lg ${
-                  isDarkMode ? 'text-slate-300' : 'text-slate-600'
-                }`}>
-                  Generate professionally structured JIRA tickets with AI assistance
-                </p>
-              </div>
-            </div>
 
-            <div className="flex items-center justify-center gap-4 flex-wrap">
+              <div className="flex-1" />
+
               <ProviderSelector
                 value={selectedProvider}
                 onChange={setSelectedProvider}
                 availableProviders={availableProviders}
-                isDarkMode={isDarkMode}
               />
 
-              {/* Progress Bar */}
-              <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30"
+                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                type="button"
+              >
+                {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+
+              <div className="flex items-center gap-1.5">
                 <div
-                  className={`w-32 rounded-full h-3 ${
-                    isDarkMode
-                      ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50'
-                      : 'bg-white/20 backdrop-blur-xl border-white/30'
-                  } border shadow-inner`}
+                  className="w-20 rounded-full h-2 bg-white/20 dark:bg-slate-800/20 border border-white/30 dark:border-slate-700/50"
                   role="progressbar"
                   aria-valuenow={calculateProgress()}
                   aria-valuemin={0}
@@ -326,14 +314,12 @@ export function JiraTicketCreator() {
                   aria-label="Ticket completion progress"
                 >
                   <div
-                    className="h-3 rounded-full transition-all duration-500 shadow-lg bg-gradient-to-r from-blue-600 to-blue-700"
+                    className="h-2 rounded-full transition-all duration-500 bg-gradient-to-r from-blue-600 to-blue-700"
                     style={{ width: `${calculateProgress()}%` }}
                   />
                 </div>
-                <span className={`font-medium text-sm ${
-                  isDarkMode ? 'text-slate-300' : 'text-slate-600'
-                }`}>
-                  {calculateProgress()}% Complete
+                <span className="font-medium text-xs text-slate-500 dark:text-slate-400">
+                  {calculateProgress()}%
                 </span>
               </div>
             </div>
@@ -349,19 +335,15 @@ export function JiraTicketCreator() {
           />
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {/* Left Panel - Form */}
           <section
-            className={`${
-              isDarkMode
-                ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50'
-                : 'bg-white/20 backdrop-blur-xl border-white/30'
-            } rounded-2xl shadow-2xl border p-8 space-y-8`}
+            className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-5 space-y-4"
             aria-labelledby="create-ticket-heading"
           >
             <h2
               id="create-ticket-heading"
-              className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+              className="text-lg font-bold text-slate-800 dark:text-white"
             >
               Create Ticket
             </h2>
@@ -374,19 +356,18 @@ export function JiraTicketCreator() {
               draftSaved={draftSaved}
               onLoadDraft={handleLoadDraft}
               onClearDraft={handleClearDraft}
-              isDarkMode={isDarkMode}
             />
 
             {/* Title input */}
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-1.5">
                 <label
                   htmlFor="ticket-title"
-                  className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+                  className="text-sm font-semibold text-slate-800 dark:text-white"
                 >
                   Title {autoGenerateTitle && <span className="text-blue-500 text-xs">(auto-generated)</span>}
                 </label>
-                <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
                   {ticketData.title.length}/100
                 </span>
               </div>
@@ -397,59 +378,60 @@ export function JiraTicketCreator() {
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder={autoGenerateTitle ? "Auto-generated from description..." : "e.g., Fix user login timeout"}
                 maxLength={100}
-                className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                  isDarkMode
-                    ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50 text-white placeholder-slate-400'
-                    : 'bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500'
-                }`}
+                className="w-full px-4 py-2 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
               />
             </div>
 
-            <TicketTypeSelector
-              value={ticketData.type}
-              onChange={handleTypeChange}
-              isDarkMode={isDarkMode}
-            />
+            {/* Type + Priority row */}
+            <div className="grid grid-cols-2 gap-4">
+              <TicketTypeSelector
+                value={ticketData.type}
+                onChange={handleTypeChange}
+              />
+              <PrioritySelector
+                value={ticketData.priority}
+                onChange={handlePriorityChange}
+              />
+            </div>
 
-            <PrioritySelector
-              value={ticketData.priority}
-              onChange={handlePriorityChange}
-              isDarkMode={isDarkMode}
-            />
-
-            <TemplateSelector
-              value={ticketData.template}
-              onChange={handleTemplateChange}
-              isDarkMode={isDarkMode}
-            />
+            {/* Template + Writing Style row */}
+            <div className="grid grid-cols-2 gap-4">
+              <TemplateSelector
+                value={ticketData.template}
+                onChange={handleTemplateChange}
+              />
+              <WritingStyleSelector
+                value={ticketData.writingStyle}
+                onChange={handleWritingStyleChange}
+              />
+            </div>
 
             <LabelManager
               labels={ticketData.labels}
               onAdd={handleAddLabel}
               onRemove={handleRemoveLabel}
-              isDarkMode={isDarkMode}
             />
 
             {/* Generate button */}
             <button
               onClick={() => handleGenerateTicket(false)}
               disabled={isGenerating || !ticketData.description || !selectedProvider}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 px-6 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-lg shadow-xl transition-all hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-base shadow-xl transition-all hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               aria-busy={isGenerating}
             >
               {isGenerating ? (
                 <>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white" aria-hidden="true" />
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
                   <span>Generating...</span>
                 </>
               ) : !selectedProvider ? (
                 <>
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white" aria-hidden="true" />
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
                   <span>Loading Provider...</span>
                 </>
               ) : (
                 <>
-                  <Wand2 className="w-6 h-6" aria-hidden="true" />
+                  <Wand2 className="w-5 h-5" aria-hidden="true" />
                   Generate Ticket
                 </>
               )}
@@ -471,7 +453,6 @@ export function JiraTicketCreator() {
             onCopyMarkdown={handleCopyAsMarkdown}
             onRefine={handleRefineTicket}
             copySuccess={copySuccess}
-            isDarkMode={isDarkMode}
           />
         </div>
       </div>
@@ -480,7 +461,6 @@ export function JiraTicketCreator() {
       <KeyboardShortcutsModal
         isOpen={showShortcuts}
         onClose={() => setShowShortcuts(false)}
-        isDarkMode={isDarkMode}
       />
     </div>
   );

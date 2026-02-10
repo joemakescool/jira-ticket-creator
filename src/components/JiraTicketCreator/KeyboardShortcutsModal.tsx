@@ -9,7 +9,6 @@ import { Keyboard, X } from 'lucide-react';
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isDarkMode?: boolean;
 }
 
 const SHORTCUTS = [
@@ -21,7 +20,6 @@ const SHORTCUTS = [
 export const KeyboardShortcutsModal = memo(function KeyboardShortcutsModal({
   isOpen,
   onClose,
-  isDarkMode = true
 }: KeyboardShortcutsModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -54,17 +52,11 @@ export const KeyboardShortcutsModal = memo(function KeyboardShortcutsModal({
       aria-modal="true"
       aria-labelledby="shortcuts-title"
     >
-      <div
-        className={`${
-          isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-        } rounded-xl p-6 max-w-md w-full border shadow-2xl`}
-      >
+      <div className="bg-white border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-xl p-6 max-w-md w-full border shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <h3
             id="shortcuts-title"
-            className={`text-lg font-semibold flex items-center gap-2 ${
-              isDarkMode ? 'text-white' : 'text-slate-800'
-            }`}
+            className="text-lg font-semibold flex items-center gap-2 text-slate-800 dark:text-white"
           >
             <Keyboard className="w-5 h-5" aria-hidden="true" />
             Keyboard Shortcuts
@@ -72,9 +64,7 @@ export const KeyboardShortcutsModal = memo(function KeyboardShortcutsModal({
           <button
             ref={closeButtonRef}
             onClick={onClose}
-            className={`p-1 rounded hover:bg-slate-700/30 transition-all ${
-              isDarkMode ? 'text-slate-400' : 'text-slate-600'
-            }`}
+            className="p-1 rounded hover:bg-slate-700/30 transition-all text-slate-600 dark:text-slate-400"
             aria-label="Close keyboard shortcuts"
             type="button"
           >
@@ -84,16 +74,10 @@ export const KeyboardShortcutsModal = memo(function KeyboardShortcutsModal({
         <div className="space-y-2">
           {SHORTCUTS.map(({ keys, description }) => (
             <div key={keys} className="flex items-center justify-between py-2">
-              <kbd
-                className={`px-3 py-1 rounded text-sm font-mono ${
-                  isDarkMode
-                    ? 'bg-slate-700 text-slate-300 border border-slate-600'
-                    : 'bg-slate-100 text-slate-700 border border-slate-300'
-                }`}
-              >
+              <kbd className="px-3 py-1 rounded text-sm font-mono bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600">
                 {keys}
               </kbd>
-              <span className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+              <span className="text-sm text-slate-600 dark:text-slate-300">
                 {description}
               </span>
             </div>

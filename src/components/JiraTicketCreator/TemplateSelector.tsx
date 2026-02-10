@@ -10,19 +10,17 @@ import type { TicketFormData } from './types';
 interface TemplateSelectorProps {
   value: TicketFormData['template'];
   onChange: (template: TicketFormData['template']) => void;
-  isDarkMode?: boolean;
 }
 
 export const TemplateSelector = memo(function TemplateSelector({
   value,
   onChange,
-  isDarkMode = true
 }: TemplateSelectorProps) {
   return (
     <div>
       <label
         id="template-label"
-        className={`block text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+        className="block text-sm font-semibold mb-1.5 text-slate-800 dark:text-white"
       >
         Template Style
       </label>
@@ -39,27 +37,18 @@ export const TemplateSelector = memo(function TemplateSelector({
             <button
               key={template.name}
               onClick={() => onChange(template.name)}
-              className={`flex-1 px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+              className={`flex-1 px-3 py-2 rounded-lg border-2 transition-all duration-200 ${
                 isSelected
-                  ? isDarkMode
-                    ? 'bg-purple-600/30 border-purple-500 text-white shadow-lg shadow-purple-500/20'
-                    : 'bg-purple-100 border-purple-500 text-purple-700 shadow-lg shadow-purple-500/20'
-                  : isDarkMode
-                    ? 'bg-slate-800/20 border-slate-700/50 text-slate-300 hover:border-slate-600'
-                    : 'bg-white/20 border-white/30 text-slate-600 hover:border-white/50'
+                  ? 'bg-purple-100 border-purple-500 text-purple-700 shadow-lg shadow-purple-500/20 dark:bg-purple-600/30 dark:text-white'
+                  : 'bg-white/20 border-white/30 text-slate-600 hover:border-white/50 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:border-slate-600'
               }`}
               role="radio"
               aria-checked={isSelected}
               type="button"
             >
-              <div className="flex items-center gap-3">
-                <Icon className="w-5 h-5" aria-hidden="true" />
-                <div className="text-left">
-                  <div className="font-semibold text-sm">{template.name}</div>
-                  <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {template.description}
-                  </div>
-                </div>
+              <div className="flex items-center gap-2 justify-center">
+                <Icon className="w-4 h-4" aria-hidden="true" />
+                <span className="text-sm font-medium">{template.name}</span>
               </div>
             </button>
           );

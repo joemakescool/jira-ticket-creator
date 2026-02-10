@@ -10,29 +10,18 @@ import type { TicketFormData } from './types';
 interface PrioritySelectorProps {
   value: TicketFormData['priority'];
   onChange: (priority: TicketFormData['priority']) => void;
-  isDarkMode?: boolean;
 }
 
-const getPriorityStyles = (name: string, isSelected: boolean, isDarkMode: boolean) => {
+const getPriorityStyles = (name: string, isSelected: boolean) => {
   if (!isSelected) {
-    return isDarkMode
-      ? 'bg-slate-800/20 border-slate-700/50 text-slate-300 hover:border-slate-600'
-      : 'bg-white/20 border-white/30 text-slate-600 hover:border-white/50';
+    return 'bg-white/20 border-white/30 text-slate-600 hover:border-white/50 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:border-slate-600';
   }
 
   const colorStyles: Record<string, string> = {
-    Low: isDarkMode
-      ? 'bg-green-600/30 border-green-500 text-green-400 shadow-lg shadow-green-500/20'
-      : 'bg-green-100 border-green-500 text-green-700 shadow-lg shadow-green-500/20',
-    Medium: isDarkMode
-      ? 'bg-yellow-600/30 border-yellow-500 text-yellow-400 shadow-lg shadow-yellow-500/20'
-      : 'bg-yellow-100 border-yellow-500 text-yellow-700 shadow-lg shadow-yellow-500/20',
-    High: isDarkMode
-      ? 'bg-orange-600/30 border-orange-500 text-orange-400 shadow-lg shadow-orange-500/20'
-      : 'bg-orange-100 border-orange-500 text-orange-700 shadow-lg shadow-orange-500/20',
-    Critical: isDarkMode
-      ? 'bg-red-600/30 border-red-500 text-red-400 shadow-lg shadow-red-500/20'
-      : 'bg-red-100 border-red-500 text-red-700 shadow-lg shadow-red-500/20'
+    Low: 'bg-green-100 border-green-500 text-green-700 shadow-lg shadow-green-500/20 dark:bg-green-600/30 dark:text-green-400',
+    Medium: 'bg-yellow-100 border-yellow-500 text-yellow-700 shadow-lg shadow-yellow-500/20 dark:bg-yellow-600/30 dark:text-yellow-400',
+    High: 'bg-orange-100 border-orange-500 text-orange-700 shadow-lg shadow-orange-500/20 dark:bg-orange-600/30 dark:text-orange-400',
+    Critical: 'bg-red-100 border-red-500 text-red-700 shadow-lg shadow-red-500/20 dark:bg-red-600/30 dark:text-red-400',
   };
 
   return colorStyles[name] || colorStyles.Medium;
@@ -41,18 +30,17 @@ const getPriorityStyles = (name: string, isSelected: boolean, isDarkMode: boolea
 export const PrioritySelector = memo(function PrioritySelector({
   value,
   onChange,
-  isDarkMode = true
 }: PrioritySelectorProps) {
   return (
     <div>
       <label
         id="priority-label"
-        className={`block text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+        className="block text-sm font-semibold mb-1.5 text-slate-800 dark:text-white"
       >
         Priority
       </label>
       <div
-        className="flex flex-wrap gap-2"
+        className="grid grid-cols-2 gap-1.5"
         role="radiogroup"
         aria-labelledby="priority-label"
       >
@@ -64,18 +52,17 @@ export const PrioritySelector = memo(function PrioritySelector({
             <button
               key={priority.name}
               onClick={() => onChange(priority.name)}
-              className={`px-4 py-2 rounded-xl border-2 transition-all duration-200 flex items-center gap-2 ${getPriorityStyles(
+              className={`px-2 py-1.5 rounded-lg border-2 transition-all duration-200 flex items-center gap-1.5 ${getPriorityStyles(
                 priority.name,
                 isSelected,
-                isDarkMode
               )}`}
               role="radio"
               aria-checked={isSelected}
               aria-label={`${priority.name} priority`}
               type="button"
             >
-              <Icon className="w-4 h-4" aria-hidden="true" />
-              <span className="text-sm font-medium">{priority.name}</span>
+              <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="text-xs font-medium">{priority.name}</span>
               {isSelected && (
                 <span className="sr-only">(selected)</span>
               )}

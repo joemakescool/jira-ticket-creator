@@ -1,7 +1,12 @@
 import JiraTicketCreator from './components/JiraTicketCreator';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
-  return <JiraTicketCreator />;
+  return (
+    <ThemeProvider>
+      <JiraTicketCreator />
+    </ThemeProvider>
+  );
 }
 
 export default App;

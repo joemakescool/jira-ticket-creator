@@ -20,6 +20,7 @@ import { fileURLToPath } from 'url';
 import routes from './routes/index.js';
 import { LLMFactory } from '../src/services/llm/index.js';
 import { serverLogger as logger } from './lib/logger.js';
+import { ApiError } from './lib/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,18 +112,6 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Custom error class for API errors
-class ApiError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number = 500,
-    public code?: string
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
-
 // Global error handler
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   // Handle known API errors
@@ -173,5 +162,5 @@ app.listen(PORT, () => {
   );
 });
 
-export { ApiError };
+export { ApiError } from './lib/errors.js';
 export default app;
