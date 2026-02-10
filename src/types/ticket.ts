@@ -25,8 +25,8 @@ export type RefinementStyle =
 export interface TicketInput {
   title?: string;
   description: string;
-  type: TicketType;
-  priority: TicketPriority;
+  type?: TicketType;
+  priority?: TicketPriority;
   template: TemplateStyle;
   labels: string[];
   writingStyle?: RefinementStyle;
@@ -44,6 +44,11 @@ export interface GeneratedTicket {
     labels: string[];
     generatedAt: string;
     model: string;
+    aiSuggested?: {
+      type: boolean;
+      priority: boolean;
+      labels: boolean;
+    };
   };
 }
 

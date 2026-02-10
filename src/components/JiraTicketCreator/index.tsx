@@ -1,28 +1,23 @@
 /**
  * JiraTicketCreator Component
  * Main component for creating JIRA tickets with AI assistance
- * Refactored from monolithic component into composable sub-components
+ * Two-step flow: Describe → Review & Edit
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Wand2, Sun, Moon } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileText, Sun, Moon, FileDown, CheckCircle, Plus } from 'lucide-react';
 import { useTicket } from '../../hooks/useTicket';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { RefinementStyle } from '../../types/ticket';
-import type { TicketFormData } from './types';
+import type { TicketFormData, AppStep } from './types';
 import { DEFAULT_TICKET_DATA } from './types';
-import { TITLE_GENERATION_DELAY, MIN_DESCRIPTION_FOR_TITLE } from './constants';
 
 // Sub-components
-import { DescriptionEditor } from './DescriptionEditor';
-import { TicketTypeSelector } from './TicketTypeSelector';
-import { PrioritySelector } from './PrioritySelector';
-import { TemplateSelector } from './TemplateSelector';
-import { WritingStyleSelector } from './WritingStyleSelector';
-import { LabelManager } from './LabelManager';
-import { GeneratedTicketDisplay } from './GeneratedTicketDisplay';
+import { InputView } from './InputView';
+import { ReviewView } from './ReviewView';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { ProviderSelector } from './ProviderSelector';
+import { StepIndicator } from './StepIndicator';
 import { Toast } from '../ui/Toast';
 import { useDraft } from './hooks/useDraft';
 
@@ -45,21 +40,16 @@ export function JiraTicketCreator() {
     generateTicket: hookGenerateTicket,
     refineTicket: hookRefineTicket,
     regenerateTicket: hookRegenerateTicket,
-    generateTitle: hookGenerateTitle,
     copyToClipboard: hookCopyToClipboard,
+    reset: hookReset,
   } = useTicket({ provider: selectedProvider, autoCopy: false });
 
   // Form state
   const [ticketData, setTicketData] = useState<TicketFormData>(DEFAULT_TICKET_DATA);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const autoGenerateTitle = true;
-  const autoCopy = true;
   const [copySuccess, setCopySuccess] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [wordCount, setWordCount] = useState(0);
-
-  // Refs
-  const titleGenerationTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [currentStep, setCurrentStep] = useState<AppStep>('describe');
 
   // Draft management
   const { draftSaved, loadDraft, clearDraft, saveDraftNow } = useDraft(ticketData);
@@ -101,10 +91,10 @@ export function JiraTicketCreator() {
 
   // Calculate word count
   useEffect(() => {
-    const text = `${ticketData.description} ${ticketData.title}`.trim();
+    const text = ticketData.description.trim();
     const words = text.split(/\s+/).filter(word => word.length > 0);
     setWordCount(words.length);
-  }, [ticketData.title, ticketData.description]);
+  }, [ticketData.description]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -116,10 +106,11 @@ export function JiraTicketCreator() {
 
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
+          case 'Enter':
           case 'g':
             e.preventDefault();
-            if (!isGenerating && ticketData.description) {
-              handleGenerateTicket(false);
+            if (!isGenerating && ticketData.description && selectedProvider && currentStep === 'describe') {
+              handleGenerateAndTransition();
             }
             break;
           case 's':
@@ -135,46 +126,12 @@ export function JiraTicketCreator() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [ticketData, isGenerating, saveDraftNow]);
+  }, [ticketData, isGenerating, saveDraftNow, selectedProvider, currentStep]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (titleGenerationTimeoutRef.current) {
-        clearTimeout(titleGenerationTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const calculateProgress = useCallback(() => {
-    let completed = 0;
-    const total = 5;
-
-    if (ticketData.title?.trim()) completed++;
-    if (ticketData.description?.trim()) completed++;
-    if (ticketData.type) completed++;
-    if (ticketData.priority) completed++;
-    if (ticketData.labels?.length > 0) completed++;
-
-    return Math.round((completed / total) * 100);
-  }, [ticketData]);
+  // --- Handlers ---
 
   const handleDescriptionChange = useCallback((value: string) => {
     setTicketData(prev => ({ ...prev, description: value }));
-
-    if (titleGenerationTimeoutRef.current) {
-      clearTimeout(titleGenerationTimeoutRef.current);
-    }
-
-    if (autoGenerateTitle && value.length > MIN_DESCRIPTION_FOR_TITLE) {
-      titleGenerationTimeoutRef.current = setTimeout(() => {
-        hookGenerateTitle();
-      }, TITLE_GENERATION_DELAY);
-    }
-  }, [autoGenerateTitle, hookGenerateTitle]);
-
-  const handleTitleChange = useCallback((value: string) => {
-    setTicketData(prev => ({ ...prev, title: value }));
   }, []);
 
   const handleTypeChange = useCallback((type: string) => {
@@ -191,6 +148,10 @@ export function JiraTicketCreator() {
 
   const handleWritingStyleChange = useCallback((style: RefinementStyle | undefined) => {
     setTicketData(prev => ({ ...prev, writingStyle: style }));
+  }, []);
+
+  const handleTitleChange = useCallback((value: string) => {
+    setTicketData(prev => ({ ...prev, title: value }));
   }, []);
 
   const handleAddLabel = useCallback((label: string) => {
@@ -210,30 +171,29 @@ export function JiraTicketCreator() {
     }));
   }, []);
 
-  const handleGenerateTicket = useCallback(async (regenerate = false) => {
-    if (regenerate) {
-      await hookRegenerateTicket();
-    } else {
-      await hookGenerateTicket();
+  const handleGenerateAndTransition = useCallback(async () => {
+    const result = await hookGenerateTicket();
+    if (result) {
+      setTicketData(prev => ({
+        ...prev,
+        title: result.title,
+        type: result.metadata.type,
+        priority: result.metadata.priority,
+        labels: result.metadata.labels.length > 0 ? result.metadata.labels : prev.labels,
+      }));
+      setCurrentStep('review');
     }
-    setIsEditMode(false);
+  }, [hookGenerateTicket]);
 
-    if (autoCopy && (generatedTicket || editedContent)) {
-      setTimeout(() => hookCopyToClipboard(), 500);
-    }
-  }, [hookGenerateTicket, hookRegenerateTicket, autoCopy, generatedTicket, editedContent, hookCopyToClipboard]);
+  const handleRegenerateTicket = useCallback(async () => {
+    await hookRegenerateTicket();
+  }, [hookRegenerateTicket]);
 
   const handleRefineTicket = useCallback(async (style: string) => {
     if (!editedContent && !generatedTicket) return;
-
     const apiStyle = (style as RefinementStyle) || 'concise';
     await hookRefineTicket(apiStyle);
-    setIsEditMode(false);
-
-    if (autoCopy && editedContent) {
-      setTimeout(() => hookCopyToClipboard(), 500);
-    }
-  }, [editedContent, generatedTicket, hookRefineTicket, autoCopy, hookCopyToClipboard]);
+  }, [editedContent, generatedTicket, hookRefineTicket]);
 
   const handleCopyToClipboard = useCallback(async () => {
     const success = await hookCopyToClipboard();
@@ -267,6 +227,12 @@ export function JiraTicketCreator() {
     setTicketData(DEFAULT_TICKET_DATA);
   }, [clearDraft]);
 
+  const handleNewTicket = useCallback(() => {
+    hookReset();
+    setTicketData(DEFAULT_TICKET_DATA);
+    setCurrentStep('describe');
+  }, [hookReset]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 dark:from-slate-900 dark:via-blue-900 dark:to-slate-900 relative overflow-hidden">
       {/* Background decorations */}
@@ -275,7 +241,7 @@ export function JiraTicketCreator() {
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-blue-500 to-cyan-600 opacity-10 rounded-full blur-3xl transform -rotate-12" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto p-4 space-y-4">
+      <div className="relative z-10 max-w-4xl mx-auto p-4 space-y-4">
         {/* Header */}
         <header className="mb-2 relative z-20">
           <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl p-4 shadow-lg border">
@@ -296,6 +262,16 @@ export function JiraTicketCreator() {
               />
 
               <button
+                onClick={handleLoadDraft}
+                className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30"
+                aria-label="Load saved draft"
+                title="Load saved draft"
+                type="button"
+              >
+                <FileDown className="w-4 h-4" aria-hidden="true" />
+              </button>
+
+              <button
                 onClick={toggleTheme}
                 className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30"
                 aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -304,24 +280,7 @@ export function JiraTicketCreator() {
                 {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
 
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-20 rounded-full h-2 bg-white/20 dark:bg-slate-800/20 border border-white/30 dark:border-slate-700/50"
-                  role="progressbar"
-                  aria-valuenow={calculateProgress()}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label="Ticket completion progress"
-                >
-                  <div
-                    className="h-2 rounded-full transition-all duration-500 bg-gradient-to-r from-blue-600 to-blue-700"
-                    style={{ width: `${calculateProgress()}%` }}
-                  />
-                </div>
-                <span className="font-medium text-xs text-slate-500 dark:text-slate-400">
-                  {calculateProgress()}%
-                </span>
-              </div>
+              <StepIndicator currentStep={currentStep} />
             </div>
           </div>
         </header>
@@ -335,126 +294,66 @@ export function JiraTicketCreator() {
           />
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {/* Left Panel - Form */}
-          <section
-            className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-5 space-y-4"
-            aria-labelledby="create-ticket-heading"
-          >
-            <h2
-              id="create-ticket-heading"
-              className="text-lg font-bold text-slate-800 dark:text-white"
-            >
-              Create Ticket
-            </h2>
+        {/* Step views */}
+        {currentStep === 'describe' && (
+          <InputView
+            ticketData={ticketData}
+            isGenerating={isGenerating}
+            selectedProvider={selectedProvider}
+            wordCount={wordCount}
+            draftSaved={draftSaved}
+            onDescriptionChange={handleDescriptionChange}
+            onTypeChange={handleTypeChange}
+            onPriorityChange={handlePriorityChange}
+            onTemplateChange={handleTemplateChange}
+            onWritingStyleChange={handleWritingStyleChange}
+            onGenerate={handleGenerateAndTransition}
+            onClearDraft={handleClearDraft}
+          />
+        )}
 
-            <DescriptionEditor
-              value={ticketData.description}
-              onChange={handleDescriptionChange}
-              charCount={ticketData.description.length}
-              wordCount={wordCount}
-              draftSaved={draftSaved}
-              onLoadDraft={handleLoadDraft}
-              onClearDraft={handleClearDraft}
-            />
-
-            {/* Title input */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label
-                  htmlFor="ticket-title"
-                  className="text-sm font-semibold text-slate-800 dark:text-white"
-                >
-                  Title {autoGenerateTitle && <span className="text-blue-500 text-xs">(auto-generated)</span>}
-                </label>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {ticketData.title.length}/100
-                </span>
-              </div>
-              <input
-                id="ticket-title"
-                type="text"
-                value={ticketData.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder={autoGenerateTitle ? "Auto-generated from description..." : "e.g., Fix user login timeout"}
-                maxLength={100}
-                className="w-full px-4 py-2 border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
-              />
-            </div>
-
-            {/* Type + Priority row */}
-            <div className="grid grid-cols-2 gap-4">
-              <TicketTypeSelector
-                value={ticketData.type}
-                onChange={handleTypeChange}
-              />
-              <PrioritySelector
-                value={ticketData.priority}
-                onChange={handlePriorityChange}
-              />
-            </div>
-
-            {/* Template + Writing Style row */}
-            <div className="grid grid-cols-2 gap-4">
-              <TemplateSelector
-                value={ticketData.template}
-                onChange={handleTemplateChange}
-              />
-              <WritingStyleSelector
-                value={ticketData.writingStyle}
-                onChange={handleWritingStyleChange}
-              />
-            </div>
-
-            <LabelManager
-              labels={ticketData.labels}
-              onAdd={handleAddLabel}
-              onRemove={handleRemoveLabel}
-            />
-
-            {/* Generate button */}
-            <button
-              onClick={() => handleGenerateTicket(false)}
-              disabled={isGenerating || !ticketData.description || !selectedProvider}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-base shadow-xl transition-all hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              aria-busy={isGenerating}
-            >
-              {isGenerating ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
-                  <span>Generating...</span>
-                </>
-              ) : !selectedProvider ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
-                  <span>Loading Provider...</span>
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-5 h-5" aria-hidden="true" />
-                  Generate Ticket
-                </>
-              )}
-            </button>
-          </section>
-
-          {/* Right Panel - Generated Ticket */}
-          <GeneratedTicketDisplay
+        {currentStep === 'review' && generatedTicket && (
+          <ReviewView
             generatedTicket={generatedTicket}
             editedContent={editedContent}
-            isEditMode={isEditMode}
+            ticketData={ticketData}
             isGenerating={isGenerating}
             isRefining={isRefining}
             error={ticketError}
-            onEditModeToggle={() => setIsEditMode(!isEditMode)}
+            onTitleChange={handleTitleChange}
+            onTypeChange={handleTypeChange}
+            onPriorityChange={handlePriorityChange}
+            onAddLabel={handleAddLabel}
+            onRemoveLabel={handleRemoveLabel}
             onContentChange={setEditedContent}
-            onRegenerate={() => handleGenerateTicket(true)}
+            onRegenerate={handleRegenerateTicket}
             onCopy={handleCopyToClipboard}
             onCopyMarkdown={handleCopyAsMarkdown}
             onRefine={handleRefineTicket}
+            onBackToEdit={() => setCurrentStep('describe')}
             copySuccess={copySuccess}
           />
-        </div>
+        )}
+
+        {currentStep === 'done' && (
+          <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-8 text-center">
+            <CheckCircle className="w-16 h-16 mx-auto mb-4 text-emerald-500" aria-hidden="true" />
+            <h2 className="text-xl font-bold mb-2 text-slate-800 dark:text-white">
+              Ticket Copied!
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              Your ticket has been copied to the clipboard.
+            </p>
+            <button
+              onClick={handleNewTicket}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 font-semibold mx-auto shadow-xl hover:shadow-2xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              type="button"
+            >
+              <Plus className="w-5 h-5" aria-hidden="true" />
+              Create Another
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Keyboard Shortcuts Modal */}

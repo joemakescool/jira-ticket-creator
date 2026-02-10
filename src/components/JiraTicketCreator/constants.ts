@@ -56,16 +56,22 @@ export interface WritingStyleConfig {
   value: RefinementStyle;
   label: string;
   icon: LucideIcon;
+  description: string;
 }
 
-export const WRITING_STYLES: WritingStyleConfig[] = [
-  { value: 'concise', label: 'Concise', icon: AlignLeft },
-  { value: 'detailed', label: 'Detailed', icon: AlignJustify },
-  { value: 'technical', label: 'Technical', icon: Code2 },
-  { value: 'business', label: 'Business', icon: Briefcase },
-  { value: 'user-story', label: 'User Story', icon: User },
-  { value: 'acceptance', label: 'Criteria', icon: ListChecks },
+export const PRIMARY_WRITING_STYLES: WritingStyleConfig[] = [
+  { value: 'concise', label: 'Concise', icon: AlignLeft, description: 'Brief and to the point' },
+  { value: 'technical', label: 'Technical', icon: Code2, description: 'Implementation-focused with technical details' },
+  { value: 'user-story', label: 'User Story', icon: User, description: 'As a [role], I want [feature], so that [benefit]' },
 ];
+
+export const SECONDARY_WRITING_STYLES: WritingStyleConfig[] = [
+  { value: 'detailed', label: 'Detailed', icon: AlignJustify, description: 'Thorough with edge cases' },
+  { value: 'business', label: 'Business', icon: Briefcase, description: 'Customer impact & ROI focus' },
+  { value: 'acceptance', label: 'Criteria', icon: ListChecks, description: 'Heavy on acceptance criteria' },
+];
+
+export const WRITING_STYLES: WritingStyleConfig[] = [...PRIMARY_WRITING_STYLES, ...SECONDARY_WRITING_STYLES];
 
 export const DRAFT_SAVE_DELAY = 2000;
 export const TITLE_GENERATION_DELAY = 1000;
