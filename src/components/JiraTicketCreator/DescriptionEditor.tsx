@@ -143,7 +143,7 @@ export const DescriptionEditor = memo(function DescriptionEditor({
         onChange={(e) => onChange(e.target.value)}
         placeholder="Describe the problem, feature request, or task..."
         rows={3}
-        className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400 resize-none font-mono text-sm"
+        className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400 resize-none font-mono text-sm"
       />
     </div>
   );

@@ -52,7 +52,7 @@ export const PrioritySelector = memo(function PrioritySelector({
             <button
               key={priority.name}
               onClick={() => onChange(priority.name)}
-              className={`px-2 py-1.5 rounded-lg border-2 transition-all duration-200 flex items-center gap-1.5 ${getPriorityStyles(
+              className={`px-2 py-1.5 rounded-lg border-2 transition-all duration-200 press-effect flex items-center gap-1.5 ${getPriorityStyles(
                 priority.name,
                 isSelected,
               )}`}
