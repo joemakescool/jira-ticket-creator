@@ -13,7 +13,11 @@
       "Bash(npm run build:server:*)",
       "Bash(curl:*)",
       "Bash(npx eslint:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator\\\\src\\\\components\\\\JiraTicketCreator\\\\LabelManager.tsx\")",
+      "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator\\\\src\\\\components\\\\JiraTicketCreator\\\\GeneratedTicketDisplay.tsx\")",
+      "Bash(git checkout:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }
