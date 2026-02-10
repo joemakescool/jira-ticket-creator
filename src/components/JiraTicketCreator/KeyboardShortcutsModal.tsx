@@ -12,7 +12,8 @@ interface KeyboardShortcutsModalProps {
 }
 
 const SHORTCUTS = [
-  { keys: 'Ctrl + G', description: 'Generate ticket' },
+  { keys: 'Ctrl + Enter', description: 'Generate ticket' },
+  { keys: 'Ctrl + G', description: 'Generate ticket (alt)' },
   { keys: 'Ctrl + S', description: 'Save draft' },
   { keys: 'Ctrl + K', description: 'Show shortcuts' }
 ];

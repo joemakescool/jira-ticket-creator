@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored !== null) return stored === 'dark';
-    return true; // Default to dark mode
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   // Sync dark class on <html> element

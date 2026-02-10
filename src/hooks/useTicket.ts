@@ -39,7 +39,7 @@ interface UseTicketReturn {
   // Actions
   setInput: (input: Partial<TicketInput>) => void;
   setEditedContent: (content: string) => void;
-  generateTicket: () => Promise<void>;
+  generateTicket: () => Promise<GeneratedTicket | null>;
   refineTicket: (style: RefinementStyle) => Promise<void>;
   regenerateTicket: () => Promise<void>;
   generateTitle: () => Promise<void>;
@@ -85,38 +85,41 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
   }, [editedContent, generatedTicket]);
 
   // Generate ticket
-  const generateTicket = useCallback(async () => {
+  const generateTicket = useCallback(async (): Promise<GeneratedTicket | null> => {
     if (!input.description?.trim()) {
       setError('Description is required');
-      return;
+      return null;
     }
-    
+
     setIsGenerating(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`${API_BASE}/tickets/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input, provider }),
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Generation failed');
       }
-      
+
       setGeneratedTicket(data.data);
       setEditedContent(data.data.content);
-      
+
       if (autoCopy) {
         setTimeout(() => {
           navigator.clipboard.writeText(data.data.content).catch(() => {});
         }, 100);
       }
+
+      return data.data as GeneratedTicket;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed');
+      return null;
     } finally {
       setIsGenerating(false);
     }

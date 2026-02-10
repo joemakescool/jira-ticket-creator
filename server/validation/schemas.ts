@@ -46,8 +46,8 @@ export const ticketInputSchema = z.object({
     .max(MAX_TITLE_LENGTH, `Title cannot exceed ${MAX_TITLE_LENGTH} characters`)
     .optional()
     .transform(s => s?.trim()),
-  type: ticketTypeSchema.optional().default('Task'),
-  priority: prioritySchema.optional().default('Medium'),
+  type: ticketTypeSchema.optional(),
+  priority: prioritySchema.optional(),
   labels: z
     .array(z.string().max(MAX_LABEL_LENGTH))
     .max(MAX_LABELS, `Cannot have more than ${MAX_LABELS} labels`)
