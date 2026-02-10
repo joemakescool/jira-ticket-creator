@@ -29,6 +29,7 @@ export interface TicketInput {
   priority: TicketPriority;
   template: TemplateStyle;
   labels: string[];
+  writingStyle?: RefinementStyle;
 }
 
 /**
@@ -78,52 +79,6 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
-}
-
-/**
- * Ticket type metadata for UI
- */
-export interface TicketTypeConfig {
-  value: TicketType;
-  icon: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  description: string;
-}
-
-/**
- * Priority metadata for UI
- */
-export interface PriorityConfig {
-  value: TicketPriority;
-  icon: string;
-  color: string;
-  description: string;
-}
-
-/**
- * Quick template preset
- */
-export interface QuickTemplate {
-  name: string;
-  type: TicketType;
-  template: string;
-  labels: string[];
-  description?: string;
-}
-
-/**
- * Form state for the ticket creator
- */
-export interface TicketFormState extends TicketInput {
-  // Additional UI state
-  isGenerating: boolean;
-  isRefining: boolean;
-  generatedContent: string;
-  editedContent: string;
-  isEditMode: boolean;
-  error: string | null;
 }
 
 /**

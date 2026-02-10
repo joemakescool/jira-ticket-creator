@@ -2,22 +2,18 @@
  * Type definitions for JiraTicketCreator components
  */
 
-export interface TicketFormData {
-  title: string;
-  description: string;
-  type: 'Task' | 'Story' | 'Bug' | 'Spike' | 'Epic';
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  template: 'Basic' | 'Detailed';
-  labels: string[];
-}
+import type { TicketInput } from '../../types/ticket';
+import { DEFAULT_TICKET_INPUT } from '../../types/ticket';
+
+/**
+ * TicketFormData is the UI form version of TicketInput where title is always
+ * present (even if empty string), since the form always renders a title field.
+ */
+export type TicketFormData = TicketInput & { title: string };
 
 export const DEFAULT_TICKET_DATA: TicketFormData = {
-  title: '',
-  description: '',
-  type: 'Task',
-  priority: 'Medium',
-  template: 'Basic',
-  labels: []
+  ...DEFAULT_TICKET_INPUT,
+  title: DEFAULT_TICKET_INPUT.title ?? '',
 };
 
 export type MarkdownAction =

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { LLM_PROVIDERS } from '../../src/services/llm/LLMProvider.js';
 
 // Constants for validation
 const MAX_DESCRIPTION_LENGTH = 5000;
@@ -13,8 +14,9 @@ const MAX_TITLE_LENGTH = 100;
 const MAX_LABEL_LENGTH = 50;
 const MAX_LABELS = 10;
 
-// Valid provider names
-export const providerSchema = z.enum(['claude', 'openai', 'gemini', 'ollama']);
+// Valid provider names (derived from LLM_PROVIDERS source of truth)
+const providerValues = Object.values(LLM_PROVIDERS) as [string, ...string[]];
+export const providerSchema = z.enum(providerValues);
 
 // Valid ticket types
 export const ticketTypeSchema = z.enum(['Task', 'Story', 'Bug', 'Spike', 'Epic']);
@@ -52,6 +54,7 @@ export const ticketInputSchema = z.object({
     .optional()
     .default([]),
   template: z.enum(['Basic', 'Detailed']).optional().default('Basic'),
+  writingStyle: refinementStyleSchema.optional(),
 });
 
 // Generate ticket request

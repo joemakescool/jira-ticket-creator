@@ -3,8 +3,9 @@
  * Centralized configuration for reusability
  */
 
-import { CheckSquare, FileText, Bug, Zap, Upload, TrendingUp, AlertCircle, AlertTriangle, Flame, Layout, LayoutGrid } from 'lucide-react';
+import { CheckSquare, FileText, Bug, Zap, Upload, TrendingUp, AlertCircle, AlertTriangle, Flame, Layout, LayoutGrid, AlignLeft, AlignJustify, Code2, Briefcase, User, ListChecks } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { RefinementStyle } from '../../types/ticket';
 
 export const COMMON_LABELS = [
   'frontend', 'backend', 'api', 'database', 'security', 'performance',
@@ -49,6 +50,21 @@ export interface TemplateConfig {
 export const TEMPLATES: TemplateConfig[] = [
   { name: 'Basic', icon: Layout, description: 'Simple & concise' },
   { name: 'Detailed', icon: LayoutGrid, description: 'Comprehensive details' }
+];
+
+export interface WritingStyleConfig {
+  value: RefinementStyle;
+  label: string;
+  icon: LucideIcon;
+}
+
+export const WRITING_STYLES: WritingStyleConfig[] = [
+  { value: 'concise', label: 'Concise', icon: AlignLeft },
+  { value: 'detailed', label: 'Detailed', icon: AlignJustify },
+  { value: 'technical', label: 'Technical', icon: Code2 },
+  { value: 'business', label: 'Business', icon: Briefcase },
+  { value: 'user-story', label: 'User Story', icon: User },
+  { value: 'acceptance', label: 'Criteria', icon: ListChecks },
 ];
 
 export const DRAFT_SAVE_DELAY = 2000;

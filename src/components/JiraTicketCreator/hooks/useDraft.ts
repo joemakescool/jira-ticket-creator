@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TicketFormData } from '../types';
-import { DEFAULT_TICKET_DATA } from '../types';
 import { DRAFT_SAVE_DELAY } from '../constants';
 
 const STORAGE_KEY = 'ticketDraft';
@@ -50,7 +49,8 @@ export function useDraft(ticketData: TicketFormData) {
           type: parsed.type || 'Task',
           priority: parsed.priority || 'Medium',
           template: parsed.template || 'Basic',
-          labels: parsed.labels || []
+          labels: parsed.labels || [],
+          writingStyle: parsed.writingStyle || undefined
         };
       }
     } catch (error) {
@@ -84,5 +84,3 @@ export function useDraft(ticketData: TicketFormData) {
     saveDraftNow
   };
 }
-
-export { DEFAULT_TICKET_DATA, DRAFT_SAVE_DELAY };

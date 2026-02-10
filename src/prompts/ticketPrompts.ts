@@ -34,11 +34,12 @@ You never include the ticket type in the output (it's metadata, not content).`;
  * Generate the main ticket content
  */
 export function buildTicketPrompt(input: TicketInput): string {
-  const { title, description, type, priority, labels, template } = input;
-  
+  const { title, description, type, priority, labels, template, writingStyle } = input;
+
   const typeGuidance = getTypeGuidance(type);
   const templateGuidance = getTemplateGuidance(template);
-  
+  const styleGuidance = writingStyle ? getWritingStyleGuidance(writingStyle) : '';
+
   return `Generate a JIRA ticket with the following information:
 
 **Title:** ${title || 'Generate an appropriate title'}
@@ -55,6 +56,8 @@ ${description || 'No description provided'}
 ${typeGuidance}
 
 ${templateGuidance}
+
+${styleGuidance}
 
 **Format Requirements:**
 - Start with the title as an H2 (##)
@@ -206,4 +209,16 @@ function getRefinementInstructions(style: RefinementStyle): string {
   };
   
   return instructions[style] || instructions.detailed;
+}
+
+function getWritingStyleGuidance(style: RefinementStyle): string {
+  const guidance: Record<RefinementStyle, string> = {
+    concise: '**Writing Style: Concise** - Keep the ticket brief and focused. Minimize filler, use direct language.',
+    detailed: '**Writing Style: Detailed** - Be thorough. Include background, edge cases, and comprehensive acceptance criteria.',
+    technical: '**Writing Style: Technical** - Focus on implementation details, technical requirements, and system-level concerns.',
+    business: '**Writing Style: Business-Focused** - Emphasize user/customer impact, business metrics, and ROI.',
+    'user-story': '**Writing Style: User Story** - Frame everything from the user perspective. Use "As a [user]..." format.',
+    acceptance: '**Writing Style: Criteria-Heavy** - Emphasize detailed, verifiable acceptance criteria with edge cases.',
+  };
+  return guidance[style] || '';
 }

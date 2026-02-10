@@ -5,11 +5,7 @@
 
 import { memo } from 'react';
 import { Edit, RefreshCw, Copy, FileText, AlertCircle } from 'lucide-react';
-
-interface GeneratedTicket {
-  content: string;
-  title?: string;
-}
+import type { GeneratedTicket } from '../../types/ticket';
 
 interface GeneratedTicketDisplayProps {
   generatedTicket: GeneratedTicket | null;
@@ -25,7 +21,6 @@ interface GeneratedTicketDisplayProps {
   onCopyMarkdown: () => void;
   onRefine: (style: string) => void;
   copySuccess: boolean;
-  isDarkMode?: boolean;
 }
 
 const REFINEMENT_OPTIONS: { style: string; label: string }[] = [
@@ -51,21 +46,16 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
   onCopyMarkdown,
   onRefine,
   copySuccess,
-  isDarkMode = true
 }: GeneratedTicketDisplayProps) {
   const hasContent = generatedTicket?.content || editedContent;
   const displayContent = editedContent || generatedTicket?.content;
 
   return (
     <div
-      className={`${
-        isDarkMode
-          ? 'bg-slate-800/20 backdrop-blur-xl border-slate-700/50'
-          : 'bg-white/20 backdrop-blur-xl border-white/30'
-      } rounded-2xl shadow-2xl border p-8`}
+      className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-5"
     >
       <div className="flex items-center justify-between mb-6">
-        <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
           Generated Ticket
         </h2>
         {hasContent && (
@@ -105,11 +95,7 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
             </button>
             <button
               onClick={onCopyMarkdown}
-              className={`py-2 px-4 rounded-xl flex items-center gap-2 border ${
-                isDarkMode
-                  ? 'bg-slate-700/30 text-slate-300 border-slate-600'
-                  : 'bg-white/30 text-slate-700 border-white/50'
-              }`}
+              className="py-2 px-4 rounded-xl flex items-center gap-2 border bg-white/30 text-slate-700 border-white/50 dark:bg-slate-700/30 dark:text-slate-300 dark:border-slate-600"
               type="button"
             >
               <FileText className="w-4 h-4" aria-hidden="true" />
@@ -135,25 +121,19 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
       {hasContent ? (
         <>
           <div
-            className={`rounded-xl border ${
-              isDarkMode ? 'bg-slate-800/20 border-slate-700/50' : 'bg-white/20 border-white/30'
-            }`}
+            className="rounded-xl border bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50"
           >
             {isEditMode ? (
               <textarea
                 value={editedContent}
                 onChange={(e) => onContentChange(e.target.value)}
-                className={`w-full p-6 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  isDarkMode ? 'bg-slate-800/40 text-white' : 'bg-white/40 text-slate-800'
-                } resize-none`}
+                className="w-full p-6 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white/40 text-slate-800 dark:bg-slate-800/40 dark:text-white resize-none"
                 rows={20}
                 placeholder="Edit your ticket here..."
               />
             ) : (
               <pre
-                className={`p-6 text-sm whitespace-pre-wrap font-mono ${
-                  isDarkMode ? 'text-white' : 'text-slate-800'
-                }`}
+                className="p-6 text-sm whitespace-pre-wrap font-mono text-slate-800 dark:text-white"
               >
                 {displayContent}
               </pre>
@@ -162,14 +142,10 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
 
           {/* Refinement Options */}
           <div
-            className={`mt-4 p-4 rounded-xl border ${
-              isDarkMode ? 'bg-slate-800/20 border-slate-700/50' : 'bg-white/20 border-white/30'
-            }`}
+            className="mt-4 p-4 rounded-xl border bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50"
           >
             <label
-              className={`block text-sm font-semibold mb-3 ${
-                isDarkMode ? 'text-white' : 'text-slate-800'
-              }`}
+              className="block text-sm font-semibold mb-3 text-slate-800 dark:text-white"
             >
               Refine Ticket
             </label>
@@ -179,11 +155,7 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
                   key={style}
                   onClick={() => onRefine(style)}
                   disabled={isRefining}
-                  className={`px-3 py-2 text-sm rounded-lg border transition-all ${
-                    isDarkMode
-                      ? 'bg-slate-800/20 border-slate-700/50 text-slate-300 hover:bg-slate-700/30'
-                      : 'bg-white/20 border-white/30 text-slate-600 hover:bg-white/30'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className="px-3 py-2 text-sm rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   type="button"
                 >
                   {isRefining ? '...' : label}
@@ -194,20 +166,18 @@ export const GeneratedTicketDisplay = memo(function GeneratedTicketDisplay({
         </>
       ) : (
         <div
-          className={`${
-            isDarkMode ? 'bg-slate-800/20 border-slate-700/50' : 'bg-white/20 border-white/30'
-          } rounded-xl p-12 text-center border-2 border-dashed`}
+          className="bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl p-8 text-center border-2 border-dashed"
         >
           <FileText
-            className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}
+            className="w-16 h-16 mx-auto mb-4 text-slate-500 dark:text-slate-400"
             aria-hidden="true"
           />
           <h3
-            className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+            className="text-lg font-semibold mb-2 text-slate-800 dark:text-white"
           >
             No ticket generated yet
           </h3>
-          <p className={isDarkMode ? 'text-slate-400' : 'text-slate-600'}>
+          <p className="text-slate-600 dark:text-slate-400">
             Fill in the details and click "Generate Ticket"
           </p>
         </div>
