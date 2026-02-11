@@ -21,12 +21,14 @@ import routes from './routes/index.js';
 import { LLMFactory } from '../src/services/llm/index.js';
 import { serverLogger as logger } from './lib/logger.js';
 import { ApiError } from './lib/errors.js';
+import { validateEnv } from './lib/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
+// Load environment variables and validate
 config();
+validateEnv();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

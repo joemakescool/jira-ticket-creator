@@ -17,7 +17,8 @@
       "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator\\\\src\\\\components\\\\JiraTicketCreator\\\\LabelManager.tsx\")",
       "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator\\\\src\\\\components\\\\JiraTicketCreator\\\\GeneratedTicketDisplay.tsx\")",
       "Bash(git checkout:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npx vitest run)"
     ]
   }
 }

@@ -4,6 +4,15 @@
 
 /* Custom scrollbar */
 @layer base {
+  html, body, #root {
+    min-height: 100vh;
+    background-color: #eff6ff; /* blue-50 fallback */
+  }
+
+  .dark html, .dark body, .dark #root {
+    background-color: #0f172a; /* slate-900 fallback */
+  }
+
   * {
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.3) transparent;

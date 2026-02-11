@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <!-- Ticket body -->
+  <rect x="3" y="5" width="26" height="22" rx="3" fill="url(#g)"/>
+  <!-- Perforated notches (left & right) -->
+  <circle cx="3" cy="16" r="3" fill="white"/>
+  <circle cx="29" cy="16" r="3" fill="white"/>
+  <!-- Stub line -->
+  <line x1="11" y1="5" x2="11" y2="13" stroke="white" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="2 2"/>
+  <line x1="11" y1="19" x2="11" y2="27" stroke="white" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="2 2"/>
+  <!-- Text lines on ticket -->
+  <rect x="15" y="10" width="10" height="2" rx="1" fill="white" fill-opacity="0.9"/>
+  <rect x="15" y="15" width="8" height="2" rx="1" fill="white" fill-opacity="0.6"/>
+  <rect x="15" y="20" width="10" height="2" rx="1" fill="white" fill-opacity="0.6"/>
+</svg>

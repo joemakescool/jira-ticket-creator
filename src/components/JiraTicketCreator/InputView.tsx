@@ -82,12 +82,12 @@ export const InputView = memo(function InputView({
         onWritingStyleChange={onWritingStyleChange}
       />
 
-      {/* Generate button - sticky at bottom */}
-      <div className="sticky bottom-0 pt-3 -mx-5 px-5 -mb-5 pb-5 bg-gradient-to-t from-white/80 via-white/60 to-transparent dark:from-slate-900/80 dark:via-slate-900/60 dark:to-transparent">
+      {/* Generate button */}
+      <div className="pt-2">
         <button
           onClick={onGenerate}
           disabled={isGenerating || !ticketData.description || !selectedProvider}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-base shadow-xl transition-all hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="w-full bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 hover:from-blue-600 hover:via-blue-700 hover:to-indigo-700 text-white py-3.5 px-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-base shadow-lg shadow-blue-500/25 dark:shadow-blue-500/15 transition-all hover:shadow-xl hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
           aria-busy={isGenerating}
         >
           {isGenerating ? (

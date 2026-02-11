@@ -68,8 +68,8 @@ ${templateGuidance}
 ${styleGuidance}
 
 **Format Requirements:**
-- Start with the title as an H2 (##)
-- Include a "Context" or "Description" section
+- Do NOT start with a title heading — go straight into the Context section
+- Include a "Context" or "Description" section (### Context)
 - Include "Acceptance Criteria" with checkboxes (- [ ])
 - Do NOT include the ticket type in the output
 - Use markdown formatting throughout
@@ -133,7 +133,7 @@ ${styleGuidance}
   "type": "${type || '<detected>'}",
   "priority": "${priority || '<detected>'}",
   "labels": ${labels.length > 0 ? JSON.stringify(labels) : '["label1", "label2"]'},
-  "content": "Full markdown ticket content. Start with ## title. Include Context/Description section and Acceptance Criteria with checkboxes (- [ ]). Use markdown formatting. Do NOT include the ticket type in the content."
+  "content": "Full markdown ticket content. Do NOT start with a title heading — go straight into ### Context. Include Context/Description section and Acceptance Criteria with checkboxes (- [ ]). Use markdown formatting. Do NOT include the ticket type in the content."
 }
 \`\`\``;
 }

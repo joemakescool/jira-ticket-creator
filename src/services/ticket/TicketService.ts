@@ -66,11 +66,13 @@ export class TicketService {
     );
 
     if (needsAutoDetect) {
-      return this.parseStructuredResponse(result, input);
+      const ticket = this.parseStructuredResponse(result, input);
+      ticket.content = this.stripLeadingTitle(ticket.content);
+      return ticket;
     }
 
     return {
-      content: result.content.trim(),
+      content: this.stripLeadingTitle(result.content.trim()),
       title: input.title || this.extractTitleFromContent(result.content),
       metadata: {
         type: input.type!,
@@ -183,7 +185,7 @@ Return only the improved ticket content.`;
       if (!jsonMatch) throw new Error('No JSON found in response');
 
       const jsonStr = jsonMatch[1] || jsonMatch[0];
-      const parsed = JSON.parse(jsonStr);
+      const parsed = this.safeParseJSON(jsonStr);
 
       const detectedType = this.validateType(parsed.type);
       const detectedPriority = this.validatePriority(parsed.priority);
@@ -222,6 +224,35 @@ Return only the improved ticket content.`;
         },
       };
     }
+  }
+
+  /**
+   * Parse JSON that may contain literal newlines inside string values.
+   * LLMs frequently return multiline content in JSON strings without
+   * escaping the newlines, which breaks JSON.parse.
+   */
+  private safeParseJSON(str: string): Record<string, unknown> {
+    try {
+      return JSON.parse(str);
+    } catch {
+      // Escape literal newlines/tabs inside JSON string values
+      const fixed = str.replace(
+        /"((?:[^"\\]|\\.)*)"/gs,
+        (_match, inner: string) =>
+          '"' + inner.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"'
+      );
+      return JSON.parse(fixed);
+    }
+  }
+
+  /**
+   * Remove a leading ## title heading from content.
+   * The title is displayed separately in the UI, so duplicating it
+   * inside the content body looks wrong.
+   */
+  private stripLeadingTitle(content: string): string {
+    // Match a leading H2 (## Something) optionally followed by a blank line
+    return content.replace(/^##\s+[^\n]+\n?\n?/, '').trim();
   }
 
   private validateType(type: unknown): TicketType | null {

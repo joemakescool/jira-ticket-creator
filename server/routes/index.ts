@@ -11,12 +11,14 @@ import ticketRoutes from './tickets.js';
 const router = Router();
 
 /**
- * Health check
+ * Health check — returns server status, uptime, and configured providers
  */
 router.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    availableProviders: LLMFactory.getAvailableProviders(),
+    uptime: Math.floor(process.uptime()),
+    providers: LLMFactory.getAvailableProviders(),
+    defaultProvider: process.env.DEFAULT_LLM_PROVIDER || 'ollama',
     timestamp: new Date().toISOString(),
   });
 });
