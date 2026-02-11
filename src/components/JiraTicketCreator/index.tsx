@@ -4,8 +4,8 @@
  * Two-step flow: Describe → Review & Edit
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { FileText, Sun, Moon, FileDown, CheckCircle, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { FileText, Sun, Moon, CheckCircle, Plus } from 'lucide-react';
 import { useTicket } from '../../hooks/useTicket';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { RefinementStyle } from '../../types/ticket';
@@ -42,6 +42,7 @@ export function JiraTicketCreator() {
     regenerateTicket: hookRegenerateTicket,
     copyToClipboard: hookCopyToClipboard,
     reset: hookReset,
+    cancelGeneration,
   } = useTicket({ provider: selectedProvider, autoCopy: false });
 
   // Form state
@@ -51,31 +52,73 @@ export function JiraTicketCreator() {
   const [wordCount, setWordCount] = useState(0);
   const [currentStep, setCurrentStep] = useState<AppStep>('describe');
 
-  // Draft management
-  const { draftSaved, loadDraft, clearDraft, saveDraftNow } = useDraft(ticketData);
-
-  // Fetch available providers on mount
+  // Theme pulse for first visit
+  const [showThemePulse, setShowThemePulse] = useState(false);
   useEffect(() => {
-    const fetchProviders = async () => {
-      try {
-        const response = await fetch('/api/providers');
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableProviders(data.providers || []);
-          if (data.default && !selectedProvider) {
-            setSelectedProvider(data.default);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch providers:', err);
-        setAvailableProviders(['claude', 'openai', 'ollama']);
-        if (!selectedProvider) {
-          setSelectedProvider('ollama');
+    if (!localStorage.getItem('hasVisited')) {
+      const timer = setTimeout(() => setShowThemePulse(true), 2000);
+      const hideTimer = setTimeout(() => {
+        setShowThemePulse(false);
+        localStorage.setItem('hasVisited', 'true');
+      }, 6500); // 2s delay + 4.5s animation (3x 1.5s)
+      return () => { clearTimeout(timer); clearTimeout(hideTimer); };
+    }
+  }, []);
+
+  // Provider loading state
+  const [providerLoading, setProviderLoading] = useState(true);
+  const [providerError, setProviderError] = useState<string | null>(null);
+
+  // Draft management
+  const { draftSaved, loadDraft, clearDraft, saveDraftNow, getDraftInfo } = useDraft(ticketData);
+
+  // Draft auto-restore banner
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const [draftTimestamp, setDraftTimestamp] = useState<number | null>(null);
+  const prevDescriptionEmpty = useRef(true);
+
+  // Fetch available providers with timeout
+  const fetchProviders = useCallback(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    setProviderLoading(true);
+    setProviderError(null);
+    try {
+      const response = await fetch('/api/providers', { signal: controller.signal });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableProviders(data.providers || []);
+        if (data.default && !selectedProvider) {
+          setSelectedProvider(data.default);
         }
       }
-    };
-    fetchProviders();
-  }, []);
+    } catch (err) {
+      console.error('Failed to fetch providers:', err);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setProviderError('Provider check timed out after 10s. Is your server running?');
+      } else {
+        setProviderError('Could not connect to AI providers. Check your connection.');
+      }
+      setAvailableProviders(['claude', 'openai', 'ollama']);
+      if (!selectedProvider) {
+        setSelectedProvider('ollama');
+      }
+    } finally {
+      clearTimeout(timeout);
+      setProviderLoading(false);
+    }
+  }, [selectedProvider]);
+
+  useEffect(() => { fetchProviders(); }, []);
+
+  // Check for saved draft on mount
+  useEffect(() => {
+    const info = getDraftInfo();
+    if (info.exists) {
+      setShowDraftBanner(true);
+      setDraftTimestamp(info.timestamp);
+    }
+  }, [getDraftInfo]);
 
   // Sync ticketData with hook input
   useEffect(() => {
@@ -96,7 +139,7 @@ export function JiraTicketCreator() {
     setWordCount(words.length);
   }, [ticketData.description]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (Ctrl+Enter/G moved to InputView for validation)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -106,13 +149,6 @@ export function JiraTicketCreator() {
 
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
-          case 'Enter':
-          case 'g':
-            e.preventDefault();
-            if (!isGenerating && ticketData.description && selectedProvider && currentStep === 'describe') {
-              handleGenerateAndTransition();
-            }
-            break;
           case 's':
             e.preventDefault();
             saveDraftNow(ticketData);
@@ -126,13 +162,18 @@ export function JiraTicketCreator() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [ticketData, isGenerating, saveDraftNow, selectedProvider, currentStep]);
+  }, [ticketData, saveDraftNow]);
 
   // --- Handlers ---
 
   const handleDescriptionChange = useCallback((value: string) => {
+    // Auto-dismiss draft banner when user starts typing in an empty form
+    if (showDraftBanner && prevDescriptionEmpty.current && value.length > 0) {
+      setShowDraftBanner(false);
+    }
+    prevDescriptionEmpty.current = value.length === 0;
     setTicketData(prev => ({ ...prev, description: value }));
-  }, []);
+  }, [showDraftBanner]);
 
   const handleTypeChange = useCallback((type: string) => {
     setTicketData(prev => ({ ...prev, type: type as TicketFormData['type'] }));
@@ -215,17 +256,31 @@ export function JiraTicketCreator() {
     }
   }, [editedContent, generatedTicket, ticketData]);
 
-  const handleLoadDraft = useCallback(() => {
-    const draft = loadDraft();
-    if (draft) {
-      setTicketData(draft);
-    }
-  }, [loadDraft]);
-
   const handleClearDraft = useCallback(() => {
     clearDraft();
     setTicketData(DEFAULT_TICKET_DATA);
   }, [clearDraft]);
+
+  const handleRestoreDraft = useCallback(() => {
+    const draft = loadDraft();
+    if (draft) {
+      setTicketData(draft);
+    }
+    setShowDraftBanner(false);
+  }, [loadDraft]);
+
+  const handleDiscardDraft = useCallback(() => {
+    clearDraft();
+    setShowDraftBanner(false);
+  }, [clearDraft]);
+
+  // Step navigation handler (Feature 7)
+  const handleStepClick = useCallback((step: AppStep) => {
+    const stepIndex: Record<AppStep, number> = { describe: 0, review: 1, done: 2 };
+    if (stepIndex[step] < stepIndex[currentStep]) {
+      setCurrentStep(step);
+    }
+  }, [currentStep]);
 
   const handleNewTicket = useCallback(() => {
     hookReset();
@@ -259,28 +314,25 @@ export function JiraTicketCreator() {
                 value={selectedProvider}
                 onChange={setSelectedProvider}
                 availableProviders={availableProviders}
+                isLoading={providerLoading}
+                error={providerError}
+                onRetry={fetchProviders}
               />
 
               <button
-                onClick={handleLoadDraft}
-                className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30"
-                aria-label="Load saved draft"
-                title="Load saved draft"
-                type="button"
-              >
-                <FileDown className="w-4 h-4" aria-hidden="true" />
-              </button>
-
-              <button
                 onClick={toggleTheme}
-                className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30"
+                className={`p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30 flex items-center gap-1.5 ${showThemePulse ? 'animate-theme-pulse' : ''}`}
                 aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                 type="button"
               >
                 {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                <span className="text-xs font-medium hidden sm:inline">
+                  {isDarkMode ? 'Light' : 'Dark'}
+                </span>
               </button>
 
-              <StepIndicator currentStep={currentStep} />
+              <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
             </div>
           </div>
         </header>
@@ -302,6 +354,10 @@ export function JiraTicketCreator() {
             selectedProvider={selectedProvider}
             wordCount={wordCount}
             draftSaved={draftSaved}
+            providerLoading={providerLoading}
+            error={ticketError}
+            showDraftBanner={showDraftBanner}
+            draftTimestamp={draftTimestamp}
             onDescriptionChange={handleDescriptionChange}
             onTypeChange={handleTypeChange}
             onPriorityChange={handlePriorityChange}
@@ -309,6 +365,9 @@ export function JiraTicketCreator() {
             onWritingStyleChange={handleWritingStyleChange}
             onGenerate={handleGenerateAndTransition}
             onClearDraft={handleClearDraft}
+            onCancel={cancelGeneration}
+            onRestoreDraft={handleRestoreDraft}
+            onDiscardDraft={handleDiscardDraft}
           />
         )}
 
