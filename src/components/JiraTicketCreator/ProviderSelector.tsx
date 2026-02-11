@@ -3,8 +3,9 @@
  * Custom dropdown for selecting LLM provider
  */
 
-import { memo, useState, useRef, useEffect, useCallback } from 'react';
-import { Server, ChevronDown, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { memo, useState, useRef, useEffect, useCallback, type ComponentType } from 'react';
+import { ChevronDown, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { ClaudeLogo, OpenAILogo, OllamaLogo } from './ProviderIcons';
 
 interface ProviderSelectorProps {
   value: string;
@@ -22,6 +23,27 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
   ollama: 'Ollama (Local)'
 };
+
+const PROVIDER_LOGOS: Record<string, ComponentType<{ className?: string }>> = {
+  claude: ClaudeLogo,
+  openai: OpenAILogo,
+  ollama: OllamaLogo,
+};
+
+function ProviderIcon({ provider, size = 'sm' }: { provider: string; size?: 'sm' | 'md' }) {
+  const Logo = PROVIDER_LOGOS[provider];
+  const dim = size === 'sm' ? 'w-4 h-4' : 'w-5 h-5';
+  if (Logo) {
+    return <Logo className={`${dim} flex-shrink-0`} />;
+  }
+  // Fallback for unknown providers
+  const letter = (PROVIDER_LABELS[provider] || provider).charAt(0).toUpperCase();
+  return (
+    <span className={`${dim} bg-slate-500 text-white rounded-full inline-flex items-center justify-center font-bold flex-shrink-0 text-[9px]`}>
+      {letter}
+    </span>
+  );
+}
 
 const ANIMATION_MS = 120;
 
@@ -109,7 +131,7 @@ export const ProviderSelector = memo(function ProviderSelector({
         type="button"
       >
         <div className="relative">
-          <Server className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+          <ProviderIcon provider={value || 'claude'} />
           {isLoading && (
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
           )}
@@ -162,6 +184,7 @@ export const ProviderSelector = memo(function ProviderSelector({
                 aria-selected={isSelected}
                 type="button"
               >
+                <ProviderIcon provider={provider} />
                 <span className="flex-1 font-medium">{PROVIDER_LABELS[provider] || provider}</span>
                 {isSelected && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
               </button>

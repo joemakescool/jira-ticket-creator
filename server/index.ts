@@ -18,7 +18,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import routes from './routes/index.js';
-import { LLMFactory } from '../src/services/llm/index.js';
+import { LLMFactory } from './services/llm/index.js';
 import { serverLogger as logger } from './lib/logger.js';
 import { ApiError } from './lib/errors.js';
 import { validateEnv } from './lib/env.js';

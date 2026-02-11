@@ -19,6 +19,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["server/**/*", "src/services/**/*", "src/types/**/*", "src/prompts/**/*"],
+  "include": ["server/**/*", "src/types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

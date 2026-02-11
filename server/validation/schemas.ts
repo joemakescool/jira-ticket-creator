@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { LLM_PROVIDERS } from '../../src/services/llm/LLMProvider.js';
+import { LLM_PROVIDERS } from '../services/llm/LLMProvider.js';
 
 // Constants for validation
 const MAX_DESCRIPTION_LENGTH = 5000;
@@ -79,6 +79,10 @@ export const regenerateTicketSchema = z.object({
     .string()
     .min(1, 'Current ticket content is required')
     .max(10000, 'Ticket content too long'),
+  title: z.string().max(MAX_TITLE_LENGTH).optional(),
+  type: ticketTypeSchema.optional(),
+  priority: prioritySchema.optional(),
+  labels: z.array(z.string().max(MAX_LABEL_LENGTH)).max(MAX_LABELS).optional().default([]),
   provider: providerSchema.optional(),
 });
 

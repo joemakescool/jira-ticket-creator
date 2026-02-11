@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { TicketService } from '../src/services/ticket/TicketService';
-import type { LLMProvider, LLMCompletionResult } from '../src/services/llm/LLMProvider';
+import { TicketService } from '../server/services/ticket/TicketService';
+import type { LLMProvider, LLMCompletionResult } from '../server/services/llm/LLMProvider';
 import type { TicketInput } from '../src/types/ticket';
 
 /** Create a mock provider that returns a fixed response */

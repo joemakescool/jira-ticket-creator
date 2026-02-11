@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { LLMFactory } from '../src/services/llm/LLMFactory';
-import { ClaudeProvider } from '../src/services/llm/providers/ClaudeProvider';
-import { OpenAIProvider } from '../src/services/llm/providers/OpenAIProvider';
-import { OllamaProvider } from '../src/services/llm/providers/OllamaProvider';
+import { LLMFactory } from '../server/services/llm/LLMFactory';
+import { ClaudeProvider } from '../server/services/llm/providers/ClaudeProvider';
+import { OpenAIProvider } from '../server/services/llm/providers/OpenAIProvider';
+import { OllamaProvider } from '../server/services/llm/providers/OllamaProvider';
 
 describe('LLMFactory', () => {
   beforeEach(() => {

@@ -5,7 +5,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FileText, Sun, Moon, CheckCircle, Plus } from 'lucide-react';
+import { Sun, Moon, CheckCircle, Plus } from 'lucide-react';
+import { JiraLogo } from './ProviderIcons';
 import { useTicket } from '../../hooks/useTicket';
 import { useTheme } from '../../contexts/ThemeContext';
 import type { RefinementStyle } from '../../types/ticket';
@@ -227,8 +228,13 @@ export function JiraTicketCreator() {
   }, [hookGenerateTicket]);
 
   const handleRegenerateTicket = useCallback(async () => {
-    await hookRegenerateTicket();
-  }, [hookRegenerateTicket]);
+    await hookRegenerateTicket({
+      title: ticketData.title,
+      type: ticketData.type,
+      priority: ticketData.priority,
+      labels: ticketData.labels,
+    });
+  }, [hookRegenerateTicket, ticketData.title, ticketData.type, ticketData.priority, ticketData.labels]);
 
   const handleRefineTicket = useCallback(async (style: string) => {
     if (!editedContent && !generatedTicket) return;
@@ -298,13 +304,11 @@ export function JiraTicketCreator() {
 
       <div className="relative z-10 max-w-4xl mx-auto p-4 space-y-4">
         {/* Header */}
-        <header className="mb-2 relative z-20">
+        <header className="relative z-20">
           <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl p-4 shadow-lg border">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-md">
-                  <FileText className="w-5 h-5 text-white" aria-hidden="true" />
-                </div>
+                <JiraLogo className="w-7 h-7" />
                 <h1 className="text-xl font-bold text-slate-800 dark:text-white">JIRA Ticket Creator</h1>
               </div>
 
@@ -331,8 +335,6 @@ export function JiraTicketCreator() {
                   {isDarkMode ? 'Light' : 'Dark'}
                 </span>
               </button>
-
-              <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
             </div>
           </div>
         </header>
@@ -346,73 +348,80 @@ export function JiraTicketCreator() {
           />
         )}
 
-        {/* Step views */}
-        {currentStep === 'describe' && (
-          <InputView
-            ticketData={ticketData}
-            isGenerating={isGenerating}
-            selectedProvider={selectedProvider}
-            wordCount={wordCount}
-            draftSaved={draftSaved}
-            providerLoading={providerLoading}
-            error={ticketError}
-            showDraftBanner={showDraftBanner}
-            draftTimestamp={draftTimestamp}
-            onDescriptionChange={handleDescriptionChange}
-            onTypeChange={handleTypeChange}
-            onPriorityChange={handlePriorityChange}
-            onTemplateChange={handleTemplateChange}
-            onWritingStyleChange={handleWritingStyleChange}
-            onGenerate={handleGenerateAndTransition}
-            onClearDraft={handleClearDraft}
-            onCancel={cancelGeneration}
-            onRestoreDraft={handleRestoreDraft}
-            onDiscardDraft={handleDiscardDraft}
-          />
-        )}
+        {/* Persistent step indicator */}
+        <div className="flex justify-center">
+          <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
+        </div>
 
-        {currentStep === 'review' && generatedTicket && (
-          <ReviewView
-            generatedTicket={generatedTicket}
-            editedContent={editedContent}
-            ticketData={ticketData}
-            isGenerating={isGenerating}
-            isRefining={isRefining}
-            error={ticketError}
-            onTitleChange={handleTitleChange}
-            onTypeChange={handleTypeChange}
-            onPriorityChange={handlePriorityChange}
-            onAddLabel={handleAddLabel}
-            onRemoveLabel={handleRemoveLabel}
-            onContentChange={setEditedContent}
-            onRegenerate={handleRegenerateTicket}
-            onCopy={handleCopyToClipboard}
-            onCopyMarkdown={handleCopyAsMarkdown}
-            onRefine={handleRefineTicket}
-            onBackToEdit={() => setCurrentStep('describe')}
-            copySuccess={copySuccess}
-          />
-        )}
+        {/* Step views — key forces remount for enter animation */}
+        <div key={currentStep} className="step-enter">
+          {currentStep === 'describe' && (
+            <InputView
+              ticketData={ticketData}
+              isGenerating={isGenerating}
+              selectedProvider={selectedProvider}
+              wordCount={wordCount}
+              draftSaved={draftSaved}
+              providerLoading={providerLoading}
+              error={ticketError}
+              showDraftBanner={showDraftBanner}
+              draftTimestamp={draftTimestamp}
+              onDescriptionChange={handleDescriptionChange}
+              onTypeChange={handleTypeChange}
+              onPriorityChange={handlePriorityChange}
+              onTemplateChange={handleTemplateChange}
+              onWritingStyleChange={handleWritingStyleChange}
+              onGenerate={handleGenerateAndTransition}
+              onClearDraft={handleClearDraft}
+              onCancel={cancelGeneration}
+              onRestoreDraft={handleRestoreDraft}
+              onDiscardDraft={handleDiscardDraft}
+            />
+          )}
 
-        {currentStep === 'done' && (
-          <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-8 text-center">
-            <CheckCircle className="w-16 h-16 mx-auto mb-4 text-emerald-500" aria-hidden="true" />
-            <h2 className="text-xl font-bold mb-2 text-slate-800 dark:text-white">
-              Ticket Copied!
-            </h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
-              Your ticket has been copied to the clipboard.
-            </p>
-            <button
-              onClick={handleNewTicket}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 font-semibold mx-auto shadow-xl hover:shadow-2xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              type="button"
-            >
-              <Plus className="w-5 h-5" aria-hidden="true" />
-              Create Another
-            </button>
-          </div>
-        )}
+          {currentStep === 'review' && generatedTicket && (
+            <ReviewView
+              generatedTicket={generatedTicket}
+              editedContent={editedContent}
+              ticketData={ticketData}
+              isGenerating={isGenerating}
+              isRefining={isRefining}
+              error={ticketError}
+              onTitleChange={handleTitleChange}
+              onTypeChange={handleTypeChange}
+              onPriorityChange={handlePriorityChange}
+              onAddLabel={handleAddLabel}
+              onRemoveLabel={handleRemoveLabel}
+              onContentChange={setEditedContent}
+              onRegenerate={handleRegenerateTicket}
+              onCopy={handleCopyToClipboard}
+              onCopyMarkdown={handleCopyAsMarkdown}
+              onRefine={handleRefineTicket}
+              onBackToEdit={() => setCurrentStep('describe')}
+              copySuccess={copySuccess}
+            />
+          )}
+
+          {currentStep === 'done' && (
+            <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-8 text-center">
+              <CheckCircle className="w-16 h-16 mx-auto mb-4 text-emerald-500" aria-hidden="true" />
+              <h2 className="text-xl font-bold mb-2 text-slate-800 dark:text-white">
+                Ticket Copied!
+              </h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-6">
+                Your ticket has been copied to the clipboard.
+              </p>
+              <button
+                onClick={handleNewTicket}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 font-semibold mx-auto shadow-xl hover:shadow-2xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                type="button"
+              >
+                <Plus className="w-5 h-5" aria-hidden="true" />
+                Create Another
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Keyboard Shortcuts Modal */}

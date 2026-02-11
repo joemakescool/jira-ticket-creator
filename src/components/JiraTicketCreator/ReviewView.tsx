@@ -75,19 +75,20 @@ export const ReviewView = memo(function ReviewView({
 
   return (
     <div className="space-y-4">
-      {/* Back button */}
-      <button
-        onClick={onBackToEdit}
-        className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
-        type="button"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to description
-      </button>
-
       <section
         className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-5 space-y-4"
       >
+        {/* Back button */}
+        <button
+          onClick={onBackToEdit}
+          className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-500 hover:text-slate-700 hover:bg-white/40 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/30"
+          aria-label="Back to description"
+          title="Back to description"
+          type="button"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+
         {/* Title - editable */}
         <div>
           <label

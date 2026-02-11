@@ -41,7 +41,7 @@ interface UseTicketReturn {
   setEditedContent: (content: string) => void;
   generateTicket: () => Promise<GeneratedTicket | null>;
   refineTicket: (style: RefinementStyle) => Promise<void>;
-  regenerateTicket: () => Promise<void>;
+  regenerateTicket: (metadata?: { title?: string; type?: string; priority?: string; labels?: string[] }) => Promise<void>;
   generateTitle: () => Promise<void>;
   copyToClipboard: () => Promise<boolean>;
   cancelGeneration: () => void;
@@ -211,8 +211,10 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     }
   }, [editedContent, generatedTicket, provider, autoCopy]);
 
-  // Regenerate after edits
-  const regenerateTicket = useCallback(async () => {
+  // Regenerate after edits — includes metadata so LLM can tailor to type/priority
+  const regenerateTicket = useCallback(async (metadata?: {
+    title?: string; type?: string; priority?: string; labels?: string[];
+  }) => {
     if (!editedContent?.trim()) {
       setError('No ticket to regenerate');
       return;
@@ -232,7 +234,14 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
       const response = await fetch(`${API_BASE}/tickets/regenerate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentTicket: editedContent, provider }),
+        body: JSON.stringify({
+          currentTicket: editedContent,
+          title: metadata?.title,
+          type: metadata?.type,
+          priority: metadata?.priority,
+          labels: metadata?.labels,
+          provider,
+        }),
         signal: controller.signal,
       });
 

@@ -180,7 +180,7 @@ export const InputView = memo(function InputView({
   return (
     <section
       className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-5 space-y-4"
-      aria-labelledby="create-ticket-heading"
+      aria-label="Create ticket"
     >
       {/* Draft restore banner */}
       {showDraftBanner && (
@@ -207,13 +207,6 @@ export const InputView = memo(function InputView({
           </div>
         </div>
       )}
-
-      <h2
-        id="create-ticket-heading"
-        className="text-lg font-bold text-slate-800 dark:text-white"
-      >
-        Describe Your Ticket
-      </h2>
 
       {/* Description editor with shake animation */}
       <div className={isShaking ? 'animate-shake' : ''}>

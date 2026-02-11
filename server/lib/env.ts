@@ -5,7 +5,7 @@
  * Fails fast with clear messages instead of crashing on the first API request.
  */
 
-import { LLM_PROVIDERS, LLMProviderName } from '../../src/services/llm/LLMProvider.js';
+import { LLM_PROVIDERS, LLMProviderName } from '../services/llm/LLMProvider.js';
 import { serverLogger as logger } from './logger.js';
 
 const VALID_PROVIDERS = Object.values(LLM_PROVIDERS) as string[];

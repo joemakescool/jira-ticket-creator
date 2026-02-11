@@ -4,7 +4,7 @@ import {
   buildTitlePrompt,
   buildRefinementPrompt,
   SYSTEM_PROMPT,
-} from '../src/prompts/ticketPrompts';
+} from '../server/prompts/ticketPrompts';
 import type { TicketInput } from '../src/types/ticket';
 
 const baseInput: TicketInput = {

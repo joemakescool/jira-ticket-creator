@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { TicketService } from '../../src/services/ticket/TicketService.js';
+import { TicketService } from '../services/ticket/TicketService.js';
 import { getProvider } from '../helpers/provider.js';
 import { validate } from '../middleware/validate.js';
 import { ticketLogger as logger } from '../lib/logger.js';
@@ -93,12 +93,14 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     const startTime = Date.now();
     try {
-      const { currentTicket, provider: providerName } = req.body as RegenerateTicketInput;
+      const { currentTicket, title, type, priority, labels, provider: providerName } = req.body as RegenerateTicketInput;
 
-      logger.info({ provider: providerName }, 'Regenerating ticket');
+      logger.info({ provider: providerName, type }, 'Regenerating ticket');
 
       const provider = getProvider(providerName);
-      const regenerated = await ticketService.regenerateTicket(currentTicket, provider);
+      const regenerated = await ticketService.regenerateTicket(
+        currentTicket, provider, { title, type, priority, labels }
+      );
 
       const duration = Date.now() - startTime;
       logger.info({ provider: providerName, duration }, 'Ticket regenerated successfully');

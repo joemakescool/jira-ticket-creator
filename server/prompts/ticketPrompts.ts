@@ -9,7 +9,7 @@
  * 5. Reusability - share prompts across different features
  */
 
-import { TicketInput, TicketType, RefinementStyle } from '../types/ticket';
+import { TicketInput, TicketType, RefinementStyle } from '../../src/types/ticket.js';
 
 /**
  * System prompt that sets Claude's context and behavior
@@ -68,13 +68,13 @@ ${templateGuidance}
 ${styleGuidance}
 
 **Format Requirements:**
-- Do NOT start with a title heading — go straight into the Context section
-- Include a "Context" or "Description" section (### Context)
+- Start immediately with ### Context — do NOT include a title heading (## or #)
 - Include "Acceptance Criteria" with checkboxes (- [ ])
 - Do NOT include the ticket type in the output
-- Use markdown formatting throughout
+- Do NOT wrap output in code fences (\`\`\`markdown or \`\`\`)
+- Use markdown formatting (###, -, **bold**) throughout
 
-Return only the formatted ticket content, no explanations.`;
+Return only the formatted ticket content as raw markdown, no wrapping or explanations.`;
 }
 
 /**
@@ -133,7 +133,7 @@ ${styleGuidance}
   "type": "${type || '<detected>'}",
   "priority": "${priority || '<detected>'}",
   "labels": ${labels.length > 0 ? JSON.stringify(labels) : '["label1", "label2"]'},
-  "content": "Full markdown ticket content. Do NOT start with a title heading — go straight into ### Context. Include Context/Description section and Acceptance Criteria with checkboxes (- [ ]). Use markdown formatting. Do NOT include the ticket type in the content."
+  "content": "Full markdown ticket content. Start immediately with ### Context (no title heading). Include Acceptance Criteria with checkboxes (- [ ]). Use markdown formatting. Do NOT include the ticket type. Do NOT wrap in code fences."
 }
 \`\`\``;
 }
@@ -183,7 +183,7 @@ Return only the refined ticket content.`;
 
 // --- Helper Functions ---
 
-function getTypeGuidance(type: TicketType): string {
+export function getTypeGuidance(type: TicketType): string {
   const guidance: Record<TicketType, string> = {
     Task: `This is a Task - focus on:
 - Clear definition of work to be done

@@ -5,7 +5,6 @@ import type { AppStep } from './types';
 const STEPS: { key: AppStep; label: string }[] = [
   { key: 'describe', label: 'Describe' },
   { key: 'review', label: 'Review' },
-  { key: 'done', label: 'Done' },
 ];
 
 const stepOrder: Record<AppStep, number> = { describe: 0, review: 1, done: 2 };
