@@ -14,6 +14,8 @@ interface DescriptionEditorProps {
   charCount: number;
   draftSaved: boolean;
   onClearDraft: () => void;
+  hasError?: boolean;
+  placeholder?: string;
 }
 
 const MARKDOWN_INSERTIONS: Record<MarkdownAction, { template: string; placeholder: string; cursorOffset: number }> = {
@@ -37,6 +39,8 @@ export const DescriptionEditor = memo(function DescriptionEditor({
   charCount,
   draftSaved,
   onClearDraft,
+  hasError,
+  placeholder,
 }: DescriptionEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -160,9 +164,13 @@ export const DescriptionEditor = memo(function DescriptionEditor({
         onChange={(e) => onChange(e.target.value)}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        placeholder="Describe the problem, feature request, or task..."
+        placeholder={placeholder || 'Describe the problem, feature request, or task...'}
         rows={3}
-        className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400 resize-none font-mono text-sm"
+        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:text-white dark:placeholder-slate-400 resize-none font-mono text-sm ${
+          hasError
+            ? 'border-red-500 dark:border-red-500 ring-2 ring-red-500/20'
+            : 'border-white/30 dark:border-slate-700/50'
+        }`}
       />
     </div>
   );

@@ -11,7 +11,7 @@
  * - Keeps components focused on UI
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   TicketInput,
   GeneratedTicket,
@@ -44,6 +44,7 @@ interface UseTicketReturn {
   regenerateTicket: () => Promise<void>;
   generateTitle: () => Promise<void>;
   copyToClipboard: () => Promise<boolean>;
+  cancelGeneration: () => void;
   reset: () => void;
 }
 
@@ -63,6 +64,10 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
   
   // Error state
   const [error, setError] = useState<string | null>(null);
+
+  // Abort controller for cancellation
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const userCancelledRef = useRef(false);
 
   // Update input (partial update)
   const setInput = useCallback((updates: Partial<TicketInput>) => {
@@ -84,12 +89,30 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     }
   }, [editedContent, generatedTicket]);
 
+  // Cancel generation
+  const cancelGeneration = useCallback(() => {
+    userCancelledRef.current = true;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
   // Generate ticket
   const generateTicket = useCallback(async (): Promise<GeneratedTicket | null> => {
     if (!input.description?.trim()) {
       setError('Description is required');
       return null;
     }
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    userCancelledRef.current = false;
 
     setIsGenerating(true);
     setError(null);
@@ -99,6 +122,7 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input, provider }),
+        signal: controller.signal,
       });
 
       const data = await response.json();
@@ -118,10 +142,19 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
 
       return data.data as GeneratedTicket;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        if (userCancelledRef.current) {
+          setError(null); // User cancelled, no error needed
+        } else {
+          setError('Generation timed out. Try a different provider or simplify your description.');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Generation failed');
+      }
       return null;
     } finally {
       setIsGenerating(false);
+      abortControllerRef.current = null;
     }
   }, [input, provider, autoCopy]);
 
@@ -132,34 +165,49 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
       setError('No ticket to refine');
       return;
     }
-    
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    userCancelledRef.current = false;
+
     setIsRefining(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`${API_BASE}/tickets/refine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentTicket: content, style, provider }),
+        signal: controller.signal,
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Refinement failed');
       }
-      
+
       setEditedContent(data.data.content);
-      
+
       if (autoCopy) {
         setTimeout(() => {
           navigator.clipboard.writeText(data.data.content).catch(() => {});
         }, 100);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refinement failed');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        if (!userCancelledRef.current) {
+          setError('Refinement timed out. Try again or switch providers.');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Refinement failed');
+      }
     } finally {
       setIsRefining(false);
+      abortControllerRef.current = null;
     }
   }, [editedContent, generatedTicket, provider, autoCopy]);
 
@@ -169,34 +217,49 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
       setError('No ticket to regenerate');
       return;
     }
-    
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    userCancelledRef.current = false;
+
     setIsGenerating(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`${API_BASE}/tickets/regenerate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentTicket: editedContent, provider }),
+        signal: controller.signal,
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Regeneration failed');
       }
-      
+
       setEditedContent(data.data.content);
-      
+
       if (autoCopy) {
         setTimeout(() => {
           navigator.clipboard.writeText(data.data.content).catch(() => {});
         }, 100);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Regeneration failed');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        if (!userCancelledRef.current) {
+          setError('Regeneration timed out. Try again or switch providers.');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Regeneration failed');
+      }
     } finally {
       setIsGenerating(false);
+      abortControllerRef.current = null;
     }
   }, [editedContent, provider, autoCopy]);
 
@@ -249,6 +312,7 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     regenerateTicket,
     generateTitle,
     copyToClipboard,
+    cancelGeneration,
     reset,
   };
 }

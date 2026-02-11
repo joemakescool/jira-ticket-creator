@@ -8,6 +8,7 @@ import type { TicketFormData } from '../types';
 import { DRAFT_SAVE_DELAY } from '../constants';
 
 const STORAGE_KEY = 'ticketDraft';
+const TIMESTAMP_KEY = 'ticketDraftTimestamp';
 
 export function useDraft(ticketData: TicketFormData) {
   const [draftSaved, setDraftSaved] = useState(false);
@@ -24,6 +25,7 @@ export function useDraft(ticketData: TicketFormData) {
     saveTimeoutRef.current = setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(ticketData));
+        localStorage.setItem(TIMESTAMP_KEY, String(Date.now()));
         setDraftSaved(true);
         setTimeout(() => setDraftSaved(false), 2000);
       } catch (e) {
@@ -62,6 +64,7 @@ export function useDraft(ticketData: TicketFormData) {
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TIMESTAMP_KEY);
     } catch (e) {
       console.error('Failed to clear draft:', e);
     }
@@ -70,6 +73,7 @@ export function useDraft(ticketData: TicketFormData) {
   const saveDraftNow = useCallback((data: TicketFormData) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(TIMESTAMP_KEY, String(Date.now()));
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 2000);
     } catch (e) {
@@ -77,10 +81,30 @@ export function useDraft(ticketData: TicketFormData) {
     }
   }, []);
 
+  const getDraftInfo = useCallback((): { exists: boolean; timestamp: number | null } => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const timestamp = localStorage.getItem(TIMESTAMP_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.description || parsed.title) {
+          return {
+            exists: true,
+            timestamp: timestamp ? Number(timestamp) : null,
+          };
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    return { exists: false, timestamp: null };
+  }, []);
+
   return {
     draftSaved,
     loadDraft,
     clearDraft,
-    saveDraftNow
+    saveDraftNow,
+    getDraftInfo,
   };
 }

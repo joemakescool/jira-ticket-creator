@@ -185,7 +185,9 @@ Return only the improved ticket content.`;
       if (!jsonMatch) throw new Error('No JSON found in response');
 
       const jsonStr = jsonMatch[1] || jsonMatch[0];
-      const parsed = this.safeParseJSON(jsonStr);
+      const parsed = this.safeParseJSON(jsonStr) as {
+        content?: string; title?: string; type?: string; priority?: string; labels?: unknown[];
+      };
 
       const detectedType = this.validateType(parsed.type);
       const detectedPriority = this.validatePriority(parsed.priority);
