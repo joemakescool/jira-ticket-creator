@@ -159,6 +159,64 @@
   animation: step-fade-in 0.25s ease-out;
 }
 
+/* Provider logo animations during generation */
+@keyframes slow-spin {
+  from { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(90deg) scale(1.15); }
+  50% { transform: rotate(180deg) scale(1); }
+  75% { transform: rotate(270deg) scale(1.15); }
+  to { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}
+
+@keyframes gentle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.animate-slow-spin {
+  animation: slow-spin 4s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(212, 128, 90, 0.6));
+}
+
+.animate-breathe {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.animate-gentle-bounce {
+  animation: gentle-bounce 1s ease-in-out infinite;
+}
+
+/* Phase text fade transition */
+@keyframes phase-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.phase-fade-in {
+  animation: phase-fade 0.3s ease-out;
+}
+
+/* Loading dots animation */
+.loading-dots .dot {
+  opacity: 0;
+  animation: dot-blink 1.4s infinite;
+}
+
+.loading-dots .dot-1 { animation-delay: 0s; }
+.loading-dots .dot-2 { animation-delay: 0.2s; }
+.loading-dots .dot-3 { animation-delay: 0.4s; }
+
+@keyframes dot-blink {
+  0%, 20% { opacity: 0; }
+  40% { opacity: 1; }
+  60%, 100% { opacity: 0; }
+}
+
 /* Selector button press effect */
 @layer utilities {
   .press-effect {

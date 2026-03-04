@@ -18,7 +18,10 @@
       "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\jira-ticket-creator\\\\src\\\\components\\\\JiraTicketCreator\\\\GeneratedTicketDisplay.tsx\")",
       "Bash(git checkout:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npx vitest run)"
+      "Bash(npx vitest run)",
+      "Bash(node -e \":*)",
+      "Bash(powershell -Command \":*)",
+      "Bash(npx kill-port 3098)"
     ]
   }
 }
