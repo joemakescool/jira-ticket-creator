@@ -397,7 +397,10 @@ export function JiraTicketCreator() {
               onCopy={handleCopyToClipboard}
               onCopyMarkdown={handleCopyAsMarkdown}
               onRefine={handleRefineTicket}
-              onBackToEdit={() => setCurrentStep('describe')}
+              onBackToEdit={() => {
+                setTicketData(prev => ({ ...prev, title: '' }));
+                setCurrentStep('describe');
+              }}
               copySuccess={copySuccess}
             />
           )}

@@ -9,6 +9,7 @@ import {
   Edit,
   RefreshCw,
   Copy,
+  Check,
   FileText,
   AlertCircle,
   X,
@@ -71,6 +72,7 @@ export const ReviewView = memo(function ReviewView({
 }: ReviewViewProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [labelInput, setLabelInput] = useState("");
+  const [titleCopied, setTitleCopied] = useState(false);
   const displayContent = editedContent || generatedTicket.content;
   const aiSuggested = generatedTicket.metadata.aiSuggested;
 
@@ -96,7 +98,7 @@ export const ReviewView = memo(function ReviewView({
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        {/* Title - editable */}
+        {/* Title - editable with copy button */}
         <div>
           <label
             htmlFor="review-title"
@@ -104,15 +106,32 @@ export const ReviewView = memo(function ReviewView({
           >
             Title
           </label>
-          <input
-            id="review-title"
-            type="text"
-            value={ticketData.title}
-            onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="Ticket title..."
-            maxLength={100}
-            className="w-full px-4 py-2 text-lg font-semibold border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
-          />
+          <div className="relative">
+            <input
+              id="review-title"
+              type="text"
+              value={ticketData.title}
+              onChange={(e) => onTitleChange(e.target.value)}
+              placeholder="Ticket title..."
+              maxLength={100}
+              className="w-full px-4 py-2 pr-10 text-lg font-semibold border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl border-white/30 text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-white dark:placeholder-slate-400"
+            />
+            {ticketData.title && (
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(ticketData.title);
+                  setTitleCopied(true);
+                  setTimeout(() => setTitleCopied(false), 1500);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                aria-label="Copy title"
+                title="Copy title"
+              >
+                {titleCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Metadata row: Type, Priority */}

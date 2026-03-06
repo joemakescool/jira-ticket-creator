@@ -72,23 +72,10 @@ export class TicketService {
       },
     );
 
-    if (needsAutoDetect) {
-      const ticket = this.parseStructuredResponse(result, input);
-      ticket.content = this.cleanLLMOutput(ticket.content);
-      return ticket;
-    }
-
-    return {
-      content: this.cleanLLMOutput(result.content),
-      title: input.title || this.extractTitleFromContent(result.content),
-      metadata: {
-        type: input.type!,
-        priority: input.priority!,
-        labels: input.labels,
-        generatedAt: new Date().toISOString(),
-        model: result.model,
-      },
-    };
+    // Always parse structured JSON — the prompt always requests it
+    const ticket = this.parseStructuredResponse(result, input);
+    ticket.content = this.cleanLLMOutput(ticket.content);
+    return ticket;
   }
 
   /**
@@ -336,16 +323,32 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
    * Extract title from generated content (fallback)
    */
   private extractTitleFromContent(content: string): string {
-    const h2Match = content.match(/^##\s+(.+)$/m);
-    if (h2Match) {
-      return h2Match[1].trim();
+    // Skip common section headings that aren't real titles
+    const sectionHeadings = new Set([
+      "context", "expected outcome", "acceptance criteria",
+      "description", "summary", "details", "background",
+      "requirements", "notes", "steps", "overview",
+    ]);
+
+    // Look for a ## heading that isn't a generic section heading
+    const h2Matches = content.matchAll(/^##\s+(.+)$/gm);
+    for (const match of h2Matches) {
+      const heading = match[1].trim();
+      if (!sectionHeadings.has(heading.toLowerCase())) {
+        return heading.slice(0, 100);
+      }
     }
 
-    const firstLine = content.split("\n")[0];
-    return firstLine
-      .replace(/^#+\s*/, "")
-      .trim()
-      .slice(0, 100);
+    // Fall back to first non-empty, non-heading line
+    const lines = content.split("\n");
+    for (const line of lines) {
+      const trimmed = line.replace(/^#+\s*/, "").trim();
+      if (trimmed && !sectionHeadings.has(trimmed.toLowerCase())) {
+        return trimmed.slice(0, 100);
+      }
+    }
+
+    return "Untitled Ticket";
   }
 }
 

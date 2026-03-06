@@ -165,7 +165,7 @@ export const DescriptionEditor = memo(function DescriptionEditor({
         onFocus={handleFocus}
         onBlur={handleBlur}
         placeholder={placeholder || 'Describe the problem, feature request, or task...'}
-        rows={3}
+        rows={8}
         className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus-glow transition-all bg-white/20 backdrop-blur-xl text-slate-800 placeholder-slate-500 dark:bg-slate-800/20 dark:text-white dark:placeholder-slate-400 resize-none font-mono text-sm ${
           hasError
             ? 'border-red-500 dark:border-red-500 ring-2 ring-red-500/20'
