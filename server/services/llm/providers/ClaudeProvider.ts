@@ -1,6 +1,7 @@
 import {
   LLMProvider,
   LLMMessage,
+  LLMContentPart,
   LLMCompletionOptions,
   LLMCompletionResult,
   LLMProviderConfig,
@@ -65,9 +66,9 @@ export class ClaudeProvider implements LLMProvider {
       max_tokens: options.maxTokens || 2048,
       messages: conversationMessages.map(m => ({
         role: m.role,
-        content: m.content,
+        content: this.formatContent(m.content),
       })),
-      ...(systemMessage && { system: systemMessage.content }),
+      ...(systemMessage && { system: typeof systemMessage.content === 'string' ? systemMessage.content : systemMessage.content.filter(p => p.type === 'text').map(p => (p as { text: string }).text).join('\n') }),
       ...(options.temperature !== undefined && { temperature: options.temperature }),
       ...(options.stopSequences && { stop_sequences: options.stopSequences }),
     };
@@ -132,6 +133,17 @@ export class ClaudeProvider implements LLMProvider {
         error: message,
       };
     }
+  }
+
+  private formatContent(content: string | LLMContentPart[]): string | Array<Record<string, unknown>> {
+    if (typeof content === 'string') return content;
+    return content.map(part => {
+      if (part.type === 'text') return { type: 'text', text: part.text };
+      return {
+        type: 'image',
+        source: { type: 'base64', media_type: part.mediaType, data: part.data },
+      };
+    });
   }
 
   private mapStopReason(reason: string): LLMCompletionResult['finishReason'] {

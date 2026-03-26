@@ -9,7 +9,7 @@ import { Sun, Moon, CheckCircle, Plus } from 'lucide-react';
 import { JiraLogo } from './ProviderIcons';
 import { useTicket } from '../../hooks/useTicket';
 import { useTheme } from '../../contexts/ThemeContext';
-import type { RefinementStyle } from '../../types/ticket';
+import type { RefinementStyle, Attachment } from '../../types/ticket';
 import type { TicketFormData, AppStep } from './types';
 import { DEFAULT_TICKET_DATA } from './types';
 
@@ -17,6 +17,7 @@ import { DEFAULT_TICKET_DATA } from './types';
 import { InputView } from './InputView';
 import { ReviewView } from './ReviewView';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { ImagePreviewModal } from './ImagePreviewModal';
 import { ProviderSelector } from './ProviderSelector';
 import { StepIndicator } from './StepIndicator';
 import { Toast } from '../ui/Toast';
@@ -41,7 +42,6 @@ export function JiraTicketCreator() {
     generateTicket: hookGenerateTicket,
     refineTicket: hookRefineTicket,
     regenerateTicket: hookRegenerateTicket,
-    copyToClipboard: hookCopyToClipboard,
     reset: hookReset,
     cancelGeneration,
   } = useTicket({ provider: selectedProvider, autoCopy: false });
@@ -52,6 +52,9 @@ export function JiraTicketCreator() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [currentStep, setCurrentStep] = useState<AppStep>('describe');
+
+  // Image preview modal
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // Theme pulse for first visit
   const [showThemePulse, setShowThemePulse] = useState(false);
@@ -130,6 +133,7 @@ export function JiraTicketCreator() {
       priority: ticketData.priority as 'Low' | 'Medium' | 'High' | 'Critical',
       labels: ticketData.labels,
       writingStyle: ticketData.writingStyle,
+      attachments: ticketData.attachments,
     });
   }, [ticketData, setInput]);
 
@@ -213,6 +217,24 @@ export function JiraTicketCreator() {
     }));
   }, []);
 
+  const handleAddAttachments = useCallback((newAttachments: Attachment[]) => {
+    setTicketData(prev => ({
+      ...prev,
+      attachments: [...(prev.attachments || []), ...newAttachments],
+    }));
+  }, []);
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setTicketData(prev => ({
+      ...prev,
+      attachments: (prev.attachments || []).filter(a => a.id !== id),
+    }));
+  }, []);
+
+  const handleReorderAttachments = useCallback((reordered: Attachment[]) => {
+    setTicketData(prev => ({ ...prev, attachments: reordered }));
+  }, []);
+
   const handleGenerateAndTransition = useCallback(async () => {
     const result = await hookGenerateTicket();
     if (result) {
@@ -243,18 +265,70 @@ export function JiraTicketCreator() {
   }, [editedContent, generatedTicket, hookRefineTicket]);
 
   const handleCopyToClipboard = useCallback(async () => {
-    const success = await hookCopyToClipboard();
-    if (success) {
+    const content = editedContent || generatedTicket?.content || '';
+    if (!content) return;
+
+    const attachments = ticketData.attachments || [];
+
+    try {
+      if (attachments.length > 0 && typeof ClipboardItem !== 'undefined') {
+        // Rich copy: HTML with embedded images
+        const imagesHtml = attachments
+          .map(att => `<p><img src="${att.previewUrl}" alt="${att.name}" style="max-width:600px;" /></p>`)
+          .join('\n');
+        const html = `<div>${content.replace(/\n/g, '<br />')}\n${imagesHtml}</div>`;
+        const blob = new Blob([html], { type: 'text/html' });
+        const textBlob = new Blob([content], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': blob,
+            'text/plain': textBlob,
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(content);
+      }
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
+      // Fallback to plain text
+      try {
+        await navigator.clipboard.writeText(content);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } catch { /* ignore */ }
     }
-  }, [hookCopyToClipboard]);
+  }, [editedContent, generatedTicket, ticketData.attachments]);
 
   const handleCopyAsMarkdown = useCallback(async () => {
     const ticketContent = editedContent || generatedTicket?.content || '';
-    const markdown = `# ${ticketData.title || 'Untitled Ticket'}\n\n**Type:** ${ticketData.type}\n**Priority:** ${ticketData.priority}\n**Labels:** ${ticketData.labels.length > 0 ? ticketData.labels.join(', ') : 'None'}\n\n${ticketContent || ticketData.description}`;
+    const attachments = ticketData.attachments || [];
+    const imagesMarkdown = attachments.length > 0
+      ? '\n\n---\n' + attachments.map(att => `![${att.name}](${att.previewUrl})`).join('\n')
+      : '';
+    const markdown = `# ${ticketData.title || 'Untitled Ticket'}\n\n**Type:** ${ticketData.type}\n**Priority:** ${ticketData.priority}\n**Labels:** ${ticketData.labels.length > 0 ? ticketData.labels.join(', ') : 'None'}\n\n${ticketContent || ticketData.description}${imagesMarkdown}`;
+
     try {
-      await navigator.clipboard.writeText(markdown);
+      if (attachments.length > 0 && typeof ClipboardItem !== 'undefined') {
+        const imagesHtml = attachments
+          .map(att => `<p><img src="${att.previewUrl}" alt="${att.name}" style="max-width:600px;" /></p>`)
+          .join('\n');
+        const html = `<h1>${ticketData.title || 'Untitled Ticket'}</h1>
+<p><strong>Type:</strong> ${ticketData.type}<br /><strong>Priority:</strong> ${ticketData.priority}<br /><strong>Labels:</strong> ${ticketData.labels.length > 0 ? ticketData.labels.join(', ') : 'None'}</p>
+<div>${(ticketContent || ticketData.description).replace(/\n/g, '<br />')}</div>
+${imagesHtml}`;
+        const blob = new Blob([html], { type: 'text/html' });
+        const textBlob = new Blob([markdown], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': blob,
+            'text/plain': textBlob,
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(markdown);
+      }
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
@@ -267,8 +341,8 @@ export function JiraTicketCreator() {
     setTicketData(DEFAULT_TICKET_DATA);
   }, [clearDraft]);
 
-  const handleRestoreDraft = useCallback(() => {
-    const draft = loadDraft();
+  const handleRestoreDraft = useCallback(async () => {
+    const draft = await loadDraft();
     if (draft) {
       setTicketData(draft);
     }
@@ -376,6 +450,10 @@ export function JiraTicketCreator() {
               onCancel={cancelGeneration}
               onRestoreDraft={handleRestoreDraft}
               onDiscardDraft={handleDiscardDraft}
+              onAddAttachments={handleAddAttachments}
+              onRemoveAttachment={handleRemoveAttachment}
+              onReorderAttachments={handleReorderAttachments}
+              onPreviewAttachment={setPreviewIndex}
             />
           )}
 
@@ -402,6 +480,8 @@ export function JiraTicketCreator() {
                 setCurrentStep('describe');
               }}
               copySuccess={copySuccess}
+              attachments={ticketData.attachments || []}
+              onPreviewAttachment={setPreviewIndex}
             />
           )}
 
@@ -426,6 +506,16 @@ export function JiraTicketCreator() {
           )}
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      {previewIndex !== null && (ticketData.attachments || []).length > 0 && (
+        <ImagePreviewModal
+          attachments={ticketData.attachments || []}
+          currentIndex={previewIndex}
+          onClose={() => setPreviewIndex(null)}
+          onNavigate={setPreviewIndex}
+        />
+      )}
 
       {/* Keyboard Shortcuts Modal */}
       <KeyboardShortcutsModal

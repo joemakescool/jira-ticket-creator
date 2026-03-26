@@ -1,6 +1,7 @@
 import {
   LLMProvider,
   LLMMessage,
+  LLMContentPart,
   LLMCompletionOptions,
   LLMCompletionResult,
   LLMProviderConfig,
@@ -61,7 +62,7 @@ export class OpenAIProvider implements LLMProvider {
       max_tokens: options.maxTokens || 2048,
       messages: messages.map(m => ({
         role: m.role,
-        content: m.content,
+        content: this.formatContent(m.content),
       })),
       ...(options.temperature !== undefined && { temperature: options.temperature }),
       ...(options.stopSequences && { stop: options.stopSequences }),
@@ -126,6 +127,17 @@ export class OpenAIProvider implements LLMProvider {
         error: message,
       };
     }
+  }
+
+  private formatContent(content: string | LLMContentPart[]): string | Array<Record<string, unknown>> {
+    if (typeof content === 'string') return content;
+    return content.map(part => {
+      if (part.type === 'text') return { type: 'text', text: part.text };
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${part.mediaType};base64,${part.data}` },
+      };
+    });
   }
 
   private mapFinishReason(reason: string): LLMCompletionResult['finishReason'] {

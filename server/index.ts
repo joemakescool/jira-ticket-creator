@@ -56,8 +56,8 @@ app.use(
   })
 );
 
-// Request parsing with size limits
-app.use(express.json({ limit: '10kb' }));
+// Request parsing with size limits (50mb to support base64 image attachments)
+app.use(express.json({ limit: '50mb' }));
 
 // Request logging middleware
 app.use((req, res, next) => {

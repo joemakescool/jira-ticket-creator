@@ -13,6 +13,8 @@ const MAX_DESCRIPTION_LENGTH = 5000;
 const MAX_TITLE_LENGTH = 100;
 const MAX_LABEL_LENGTH = 50;
 const MAX_LABELS = 10;
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB base64
 
 // Valid provider names (derived from LLM_PROVIDERS source of truth)
 const providerValues = Object.values(LLM_PROVIDERS) as [string, ...string[]];
@@ -33,6 +35,16 @@ export const refinementStyleSchema = z.enum([
   'user-story',
   'acceptance',
 ]);
+
+// Attachment schema
+export const attachmentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mediaType: z.string(),
+  data: z.string().max(MAX_ATTACHMENT_SIZE, 'Attachment too large (max 10MB)'),
+  previewUrl: z.string(),
+  size: z.number().default(0),
+});
 
 // Ticket input schema
 export const ticketInputSchema = z.object({
@@ -55,6 +67,11 @@ export const ticketInputSchema = z.object({
     .default([]),
   template: z.enum(['Basic', 'Detailed']).optional().default('Basic'),
   writingStyle: refinementStyleSchema.optional(),
+  attachments: z
+    .array(attachmentSchema)
+    .max(MAX_ATTACHMENTS, `Cannot have more than ${MAX_ATTACHMENTS} attachments`)
+    .optional()
+    .default([]),
 });
 
 // Generate ticket request
