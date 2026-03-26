@@ -10,14 +10,16 @@ import {
   RefreshCw,
   Copy,
   Check,
-  FileText,
+  FileText as FileTextIcon,
+  File as FileIcon,
   AlertCircle,
   X,
   Sparkles,
 } from "lucide-react";
 import { TicketTypeSelector } from "./TicketTypeSelector";
 import { PrioritySelector } from "./PrioritySelector";
-import type { GeneratedTicket } from "../../types/ticket";
+import type { GeneratedTicket, Attachment } from "../../types/ticket";
+import { isImageAttachment } from "../../types/ticket";
 import type { TicketFormData } from "./types";
 
 interface ReviewViewProps {
@@ -39,6 +41,8 @@ interface ReviewViewProps {
   onRefine: (style: string) => void;
   onBackToEdit: () => void;
   copySuccess: boolean;
+  attachments?: Attachment[];
+  onPreviewAttachment?: (index: number) => void;
 }
 
 const REFINEMENT_OPTIONS: { style: string; label: string }[] = [
@@ -69,12 +73,15 @@ export const ReviewView = memo(function ReviewView({
   onRefine,
   onBackToEdit,
   copySuccess,
+  attachments = [],
+  onPreviewAttachment,
 }: ReviewViewProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [labelInput, setLabelInput] = useState("");
   const [titleCopied, setTitleCopied] = useState(false);
   const displayContent = editedContent || generatedTicket.content;
   const aiSuggested = generatedTicket.metadata.aiSuggested;
+  const imageCaptions = generatedTicket.metadata.imageCaptions || {};
 
   const handleAddLabel = useCallback(() => {
     const trimmed = labelInput.trim().toLowerCase();
@@ -263,7 +270,7 @@ export const ReviewView = memo(function ReviewView({
             className="py-1.5 px-3 rounded-lg flex items-center gap-1.5 text-sm border bg-white/30 text-slate-700 border-white/50 dark:bg-slate-700/30 dark:text-slate-300 dark:border-slate-600"
             type="button"
           >
-            <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+            <FileTextIcon className="w-3.5 h-3.5" aria-hidden="true" />
             Markdown
           </button>
         </div>
@@ -284,6 +291,57 @@ export const ReviewView = memo(function ReviewView({
             </pre>
           )}
         </div>
+
+        {/* Attachment thumbnails */}
+        {attachments.length > 0 && (
+          <div className="p-3 rounded-xl border bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50">
+            <label className="block text-xs font-semibold mb-2 text-slate-700 dark:text-slate-300">
+              Attachments ({attachments.length})
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {attachments.map((att, idx) => {
+                const caption = imageCaptions[att.name];
+                return (
+                  <div key={att.id} className="flex flex-col items-center gap-1" style={{ width: '5.5rem' }}>
+                    <div
+                      className={`relative group rounded-xl overflow-hidden border border-white/30 dark:border-slate-700/50 w-[4.5rem] h-[4.5rem] flex-shrink-0 bg-white/10 dark:bg-slate-800/30 ${isImageAttachment(att) && onPreviewAttachment ? 'cursor-pointer' : ''}`}
+                      onClick={() => isImageAttachment(att) && onPreviewAttachment?.(idx)}
+                    >
+                      {isImageAttachment(att) ? (
+                        <img
+                          src={att.previewUrl}
+                          alt={caption || att.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-1">
+                          {att.mediaType === 'application/pdf' ? (
+                            <FileTextIcon className="w-5 h-5 text-red-400" aria-hidden="true" />
+                          ) : (
+                            <FileIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" aria-hidden="true" />
+                          )}
+                          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                            {att.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[8px] text-white truncate block leading-tight">
+                          {att.name}
+                        </span>
+                      </div>
+                    </div>
+                    {caption && (
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 text-center leading-tight line-clamp-2">
+                        {caption}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Refinement Options */}
         <div className="p-3 rounded-xl border bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50">

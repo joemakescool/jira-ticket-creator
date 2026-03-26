@@ -9,7 +9,7 @@
  * Dependency Inversion: Depends on LLMProvider interface, not implementations
  */
 
-import { LLMProvider, LLMCompletionResult } from "../llm/LLMProvider.js";
+import { LLMProvider, LLMMessage, LLMContentPart, LLMCompletionResult } from "../llm/LLMProvider.js";
 import {
   TicketInput,
   TicketType,
@@ -61,10 +61,12 @@ export class TicketService {
       !input.type || !input.priority || input.labels.length === 0;
     const prompt = buildTicketPrompt(input);
 
+    const userMessage = this.buildUserMessage(prompt, input.attachments);
+
     const result = await provider.complete(
       [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: prompt },
+        userMessage,
       ],
       {
         maxTokens: this.config.defaultMaxTokens,
@@ -186,6 +188,60 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
   }
 
   /**
+   * Build a user message, optionally with image attachments for multimodal input.
+   */
+  private buildUserMessage(
+    prompt: string,
+    attachments?: { mediaType: string; data: string; name: string }[],
+  ): LLMMessage {
+    if (!attachments || attachments.length === 0) {
+      return { role: "user", content: prompt };
+    }
+
+    const images = attachments.filter((a) => a.mediaType.startsWith("image/"));
+    const nonImages = attachments.filter((a) => !a.mediaType.startsWith("image/"));
+
+    // If no images to send via vision, just mention the files in text
+    if (images.length === 0) {
+      const fileList = nonImages.map((a) => a.name).join(", ");
+      return {
+        role: "user",
+        content: `${prompt}\n\nThe user has also attached these files for reference: ${fileList}. Mention them in the ticket where relevant.`,
+      };
+    }
+
+    const content: LLMContentPart[] = [
+      { type: "text", text: prompt },
+    ];
+
+    // Mention non-image files by name
+    if (nonImages.length > 0) {
+      const fileList = nonImages.map((a) => a.name).join(", ");
+      content.push({
+        type: "text",
+        text: `\n\nThe user has also attached these files for reference: ${fileList}. Mention them in the ticket where relevant.`,
+      });
+    }
+
+    content.push({
+      type: "text",
+      text: `\n\nThe user has attached ${images.length} image(s) for additional context. Examine them carefully and incorporate relevant details into the ticket.\n\nAlso include an "imageCaptions" field in your JSON response — an object mapping each image filename to a brief one-sentence caption describing what it shows. Image filenames: ${images.map((a) => a.name).join(", ")}`,
+    });
+
+    content.push(
+      ...images.map(
+        (att): LLMContentPart => ({
+          type: "image" as const,
+          mediaType: att.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: att.data,
+        }),
+      ),
+    );
+
+    return { role: "user", content };
+  }
+
+  /**
    * Parse a structured JSON response from the LLM when auto-detection is used.
    * Falls back gracefully if JSON parsing fails.
    */
@@ -208,6 +264,7 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
         type?: string;
         priority?: string;
         labels?: unknown[];
+        imageCaptions?: Record<string, string>;
       };
 
       const detectedType = this.validateType(parsed.type);
@@ -235,6 +292,7 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
             priority: !input.priority && !!detectedPriority,
             labels: input.labels.length === 0 && detectedLabels.length > 0,
           },
+          ...(parsed.imageCaptions && { imageCaptions: parsed.imageCaptions }),
         },
       };
     } catch (err) {

@@ -1,6 +1,7 @@
 import {
   LLMProvider,
   LLMMessage,
+  LLMContentPart,
   LLMCompletionOptions,
   LLMCompletionResult,
   LLMProviderConfig,
@@ -57,10 +58,7 @@ export class OllamaProvider implements LLMProvider {
   ): Promise<LLMCompletionResult> {
     const requestBody = {
       model: this.model,
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content,
-      })),
+      messages: messages.map(m => this.formatMessage(m)),
       stream: false,
       options: {
         num_predict: options.maxTokens || 2048,
@@ -152,6 +150,20 @@ export class OllamaProvider implements LLMProvider {
           : message,
       };
     }
+  }
+
+  private formatMessage(message: LLMMessage): Record<string, unknown> {
+    if (typeof message.content === 'string') {
+      return { role: message.role, content: message.content };
+    }
+    // Ollama uses a separate `images` array of base64 strings
+    const textParts = message.content.filter(p => p.type === 'text').map(p => (p as { text: string }).text);
+    const images = message.content.filter(p => p.type === 'image').map(p => (p as { data: string }).data);
+    return {
+      role: message.role,
+      content: textParts.join('\n'),
+      ...(images.length > 0 && { images }),
+    };
   }
 
   /**

@@ -10,9 +10,24 @@
  * - Client code depends only on the interface, not implementations
  */
 
+export interface LLMImageContent {
+  type: 'image';
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  /** Base64-encoded image data (no data URL prefix) */
+  data: string;
+}
+
+export interface LLMTextContent {
+  type: 'text';
+  text: string;
+}
+
+export type LLMContentPart = LLMTextContent | LLMImageContent;
+
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  /** String for text-only messages, array for multimodal (text + images) */
+  content: string | LLMContentPart[];
 }
 
 export interface LLMCompletionOptions {

@@ -20,6 +20,31 @@ export type RefinementStyle =
   | 'acceptance';
 
 /**
+ * An image attachment for providing visual context to the LLM
+ */
+export type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+export interface Attachment {
+  /** Unique ID for this attachment */
+  id: string;
+  /** Original file name */
+  name: string;
+  /** MIME type (any file type supported) */
+  mediaType: string;
+  /** Base64-encoded file data (no data URL prefix) */
+  data: string;
+  /** Data URL for rendering in the browser (images only, empty string for non-images) */
+  previewUrl: string;
+  /** File size in bytes */
+  size: number;
+}
+
+/** Check if an attachment is a previewable image */
+export function isImageAttachment(att: Attachment): boolean {
+  return att.mediaType.startsWith('image/') && att.previewUrl !== '';
+}
+
+/**
  * Input for creating/generating a ticket
  */
 export interface TicketInput {
@@ -30,6 +55,7 @@ export interface TicketInput {
   template: TemplateStyle;
   labels: string[];
   writingStyle?: RefinementStyle;
+  attachments?: Attachment[];
 }
 
 /**
@@ -49,6 +75,8 @@ export interface GeneratedTicket {
       priority: boolean;
       labels: boolean;
     };
+    /** LLM-generated captions for attached images, keyed by attachment name */
+    imageCaptions?: Record<string, string>;
   };
 }
 

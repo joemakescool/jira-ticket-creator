@@ -21,7 +21,7 @@ const PROVIDER_LOGOS: Record<
   ollama: { Logo: OllamaLogo, animation: "animate-gentle-bounce" },
 };
 import type { TicketFormData } from "./types";
-import type { RefinementStyle } from "../../types/ticket";
+import type { RefinementStyle, Attachment } from "../../types/ticket";
 
 function formatRelativeTime(timestamp: number | null): string {
   if (!timestamp) return "a while ago";
@@ -62,6 +62,10 @@ interface InputViewProps {
   onCancel?: () => void;
   onRestoreDraft?: () => void;
   onDiscardDraft?: () => void;
+  onAddAttachments?: (attachments: Attachment[]) => void;
+  onRemoveAttachment?: (id: string) => void;
+  onReorderAttachments?: (attachments: Attachment[]) => void;
+  onPreviewAttachment?: (index: number) => void;
 }
 
 export const InputView = memo(function InputView({
@@ -84,6 +88,10 @@ export const InputView = memo(function InputView({
   onCancel,
   onRestoreDraft,
   onDiscardDraft,
+  onAddAttachments,
+  onRemoveAttachment,
+  onReorderAttachments,
+  onPreviewAttachment,
 }: InputViewProps) {
   // Validation state
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -253,6 +261,11 @@ export const InputView = memo(function InputView({
           onClearDraft={onClearDraft}
           hasError={!!validationError && !ticketData.description.trim()}
           placeholder={typeHints?.placeholder}
+          attachments={ticketData.attachments || []}
+          onAddAttachments={onAddAttachments}
+          onRemoveAttachment={onRemoveAttachment}
+          onReorderAttachments={onReorderAttachments}
+          onPreviewAttachment={onPreviewAttachment}
         />
       </div>
 
@@ -401,10 +414,16 @@ export const InputView = memo(function InputView({
                 </>
               );
             }
+            const attCount = ticketData.attachments?.length || 0;
             return (
               <>
                 {logoEl}
                 Generate Ticket
+                {attCount > 0 && (
+                  <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-300 font-medium">
+                    {attCount} {attCount === 1 ? 'file' : 'files'}
+                  </span>
+                )}
                 <kbd className="ml-1 px-1.5 py-0.5 text-xs rounded bg-white/20 font-mono">
                   Ctrl+Enter
                 </kbd>
