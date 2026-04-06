@@ -110,9 +110,9 @@ function buildAutoDetectPrompt(
     );
   }
 
-  return `Analyze the following description and generate a JIRA ticket.
+  return `Analyze the following description and generate an improved, polished JIRA ticket.
 
-**Description/Context:**
+**Description/Context provided by the user:**
 ${description}
 
 **Auto-detect the following from the description:**
@@ -126,6 +126,17 @@ ${templateGuidance}
 
 ${styleGuidance}
 
+**Content Generation Instructions:**
+- You MUST generate improved ticket content — do NOT copy the user's description verbatim
+- Rewrite and restructure the description into a well-crafted JIRA ticket
+- Improve clarity, grammar, and professional tone
+- Ensure proper markdown formatting (###, -, **bold**) throughout
+- Start immediately with ### Context — do NOT include a title heading (## or #)
+- Include "Acceptance Criteria" with checkboxes (- [ ])
+- Do NOT include the ticket type in the content
+- Do NOT wrap output in code fences (\`\`\`markdown or \`\`\`)
+- Even if the input is already well-structured, add value by improving wording, filling gaps, and tightening language
+
 **CRITICAL: Respond with ONLY valid JSON in this exact format (no other text):**
 \`\`\`json
 {
@@ -133,7 +144,7 @@ ${styleGuidance}
   "type": "${type || '<detected>'}",
   "priority": "${priority || '<detected>'}",
   "labels": ${labels.length > 0 ? JSON.stringify(labels) : '["label1", "label2"]'},
-  "content": "Full markdown ticket content. Start immediately with ### Context (no title heading). Include Acceptance Criteria with checkboxes (- [ ]). Use markdown formatting. Do NOT include the ticket type. Do NOT wrap in code fences."
+  "content": "The full improved markdown ticket content (NOT a copy of the input). Start with ### Context. Include all relevant sections and Acceptance Criteria with checkboxes."
 }
 \`\`\``;
 }
