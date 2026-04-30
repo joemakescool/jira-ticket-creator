@@ -48,7 +48,7 @@ export class ClaudeProvider implements LLMProvider {
     }
 
     this.apiKey = config.apiKey;
-    this.model = config.model || 'claude-sonnet-4-20250514';
+    this.model = config.model || 'claude-sonnet-4-6';
     this.baseUrl = config.baseUrl || 'https://api.anthropic.com';
     this.timeout = config.timeout || 60000;
   }

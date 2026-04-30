@@ -21,7 +21,9 @@
       "Bash(npx vitest run)",
       "Bash(node -e \":*)",
       "Bash(powershell -Command \":*)",
-      "Bash(npx kill-port 3098)"
+      "Bash(npx kill-port 3098)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebSearch"
     ]
   }
 }
