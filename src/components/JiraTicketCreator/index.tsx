@@ -5,13 +5,19 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Sun, Moon, CheckCircle, Plus } from 'lucide-react';
+import { Sun, Moon, CheckCircle, Plus, AlertCircle, RefreshCw } from 'lucide-react';
 import { JiraLogo } from './ProviderIcons';
 import { useTicket } from '../../hooks/useTicket';
-import { useTheme } from '../../contexts/ThemeContext';
-import type { RefinementStyle, Attachment } from '../../types/ticket';
+import { useTheme } from '../../contexts/themeContextValue';
+import type { RefinementStyle, Attachment, TicketInput } from '../../types/ticket';
 import type { TicketFormData, AppStep } from './types';
 import { DEFAULT_TICKET_DATA } from './types';
+import {
+  buildTicketMarkdown,
+  buildTicketHtml,
+  type TicketExportData,
+} from '../../utils/ticketExport';
+import type { CopyTarget } from './ReviewView';
 
 // Sub-components
 import { InputView } from './InputView';
@@ -37,24 +43,34 @@ export function JiraTicketCreator() {
     isGenerating,
     isRefining,
     error: ticketError,
-    setInput,
     setEditedContent,
     generateTicket: hookGenerateTicket,
     refineTicket: hookRefineTicket,
     regenerateTicket: hookRegenerateTicket,
     reset: hookReset,
     cancelGeneration,
+    undo,
+    canUndo,
+    lastActionLabel,
   } = useTicket({ provider: selectedProvider, autoCopy: false });
 
   // Form state
   const [ticketData, setTicketData] = useState<TicketFormData>(DEFAULT_TICKET_DATA);
-  const [copySuccess, setCopySuccess] = useState(false);
+  // Which copy button last succeeded, so the confirmation renders on the button
+  // that was actually pressed rather than on its neighbour.
+  const [copiedTarget, setCopiedTarget] = useState<CopyTarget>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [currentStep, setCurrentStep] = useState<AppStep>('describe');
 
   // Image preview modal
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  // Advanced Options disclosure state lives here, not in InputView — InputView
+  // is keyed on currentStep and so remounts whenever the step changes.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [showMoreStyles, setShowMoreStyles] = useState(false);
 
   // Theme pulse for first visit
   const [showThemePulse, setShowThemePulse] = useState(false);
@@ -92,8 +108,10 @@ export function JiraTicketCreator() {
       if (response.ok) {
         const data = await response.json();
         setAvailableProviders(data.providers || []);
-        if (data.default && !selectedProvider) {
-          setSelectedProvider(data.default);
+        // Functional update so this callback doesn't close over selectedProvider —
+        // that kept it out of the effect's deps and made it a stale closure.
+        if (data.default) {
+          setSelectedProvider(prev => prev || data.default);
         }
       }
     } catch (err) {
@@ -104,16 +122,14 @@ export function JiraTicketCreator() {
         setProviderError('Could not connect to AI providers. Check your connection.');
       }
       setAvailableProviders(['claude', 'openai', 'ollama']);
-      if (!selectedProvider) {
-        setSelectedProvider('ollama');
-      }
+      setSelectedProvider(prev => prev || 'ollama');
     } finally {
       clearTimeout(timeout);
       setProviderLoading(false);
     }
-  }, [selectedProvider]);
+  }, []);
 
-  useEffect(() => { fetchProviders(); }, []);
+  useEffect(() => { fetchProviders(); }, [fetchProviders]);
 
   // Check for saved draft on mount
   useEffect(() => {
@@ -124,18 +140,21 @@ export function JiraTicketCreator() {
     }
   }, [getDraftInfo]);
 
-  // Sync ticketData with hook input
-  useEffect(() => {
-    setInput({
-      description: ticketData.description,
-      title: ticketData.title,
-      type: ticketData.type as 'Task' | 'Story' | 'Bug' | 'Spike' | 'Epic',
-      priority: ticketData.priority as 'Low' | 'Medium' | 'High' | 'Critical',
-      labels: ticketData.labels,
-      writingStyle: ticketData.writingStyle,
-      attachments: ticketData.attachments,
-    });
-  }, [ticketData, setInput]);
+  /**
+   * Translate the form into the API's input shape. Built at request time rather
+   * than mirrored into the hook via an effect — the old sync silently omitted
+   * `template`, so the Basic/Detailed choice never reached the server.
+   */
+  const toTicketInput = useCallback((): TicketInput => ({
+    description: ticketData.description,
+    title: ticketData.title,
+    type: ticketData.type,
+    priority: ticketData.priority,
+    template: ticketData.template,
+    labels: ticketData.labels,
+    writingStyle: ticketData.writingStyle,
+    attachments: ticketData.attachments,
+  }), [ticketData]);
 
   // Calculate word count
   useEffect(() => {
@@ -236,7 +255,7 @@ export function JiraTicketCreator() {
   }, []);
 
   const handleGenerateAndTransition = useCallback(async () => {
-    const result = await hookGenerateTicket();
+    const result = await hookGenerateTicket(toTicketInput());
     if (result) {
       setTicketData(prev => ({
         ...prev,
@@ -247,7 +266,7 @@ export function JiraTicketCreator() {
       }));
       setCurrentStep('review');
     }
-  }, [hookGenerateTicket]);
+  }, [hookGenerateTicket, toTicketInput]);
 
   const handleRegenerateTicket = useCallback(async () => {
     await hookRegenerateTicket({
@@ -264,77 +283,81 @@ export function JiraTicketCreator() {
     await hookRefineTicket(apiStyle);
   }, [editedContent, generatedTicket, hookRefineTicket]);
 
-  const handleCopyToClipboard = useCallback(async () => {
-    const content = editedContent || generatedTicket?.content || '';
-    if (!content) return;
+  /** Everything the export helpers need, derived from current form + output. */
+  const exportData = useCallback((): TicketExportData => ({
+    title: ticketData.title,
+    type: ticketData.type,
+    priority: ticketData.priority,
+    labels: ticketData.labels,
+    content: editedContent || generatedTicket?.content || ticketData.description,
+    attachments: ticketData.attachments,
+  }), [ticketData, editedContent, generatedTicket]);
 
-    const attachments = ticketData.attachments || [];
+  const confirmCopy = useCallback((target: Exclude<CopyTarget, null>, message: string) => {
+    setCopiedTarget(target);
+    setToastMessage(message);
+    setTimeout(() => setCopiedTarget(null), 2000);
+  }, []);
+
+  /** Copy the ticket body only (plain text, with rich HTML when images exist). */
+  const handleCopyToClipboard = useCallback(async () => {
+    const data = exportData();
+    if (!data.content) return;
+
+    const attachments = data.attachments || [];
 
     try {
       if (attachments.length > 0 && typeof ClipboardItem !== 'undefined') {
-        // Rich copy: HTML with embedded images
-        const imagesHtml = attachments
-          .map(att => `<p><img src="${att.previewUrl}" alt="${att.name}" style="max-width:600px;" /></p>`)
-          .join('\n');
-        const html = `<div>${content.replace(/\n/g, '<br />')}\n${imagesHtml}</div>`;
-        const blob = new Blob([html], { type: 'text/html' });
-        const textBlob = new Blob([content], { type: 'text/plain' });
+        const html = buildTicketHtml(data, { includeHeader: false });
         await navigator.clipboard.write([
           new ClipboardItem({
-            'text/html': blob,
-            'text/plain': textBlob,
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([data.content], { type: 'text/plain' }),
           }),
         ]);
       } else {
-        await navigator.clipboard.writeText(content);
+        await navigator.clipboard.writeText(data.content);
       }
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
+      confirmCopy('plain', 'Ticket copied to clipboard');
     } catch (err) {
       console.error('Copy failed:', err);
-      // Fallback to plain text
       try {
-        await navigator.clipboard.writeText(content);
-        setCopySuccess(true);
-        setTimeout(() => setCopySuccess(false), 2000);
-      } catch { /* ignore */ }
+        await navigator.clipboard.writeText(data.content);
+        confirmCopy('plain', 'Ticket copied to clipboard');
+      } catch {
+        setToastMessage('Copy failed — your browser blocked clipboard access');
+      }
     }
-  }, [editedContent, generatedTicket, ticketData.attachments]);
+  }, [exportData, confirmCopy]);
 
+  /**
+   * Terminal action: copy the full markdown document — title, metadata header
+   * and body — then complete the flow.
+   */
   const handleCopyAsMarkdown = useCallback(async () => {
-    const ticketContent = editedContent || generatedTicket?.content || '';
-    const attachments = ticketData.attachments || [];
-    const imagesMarkdown = attachments.length > 0
-      ? '\n\n---\n' + attachments.map(att => `![${att.name}](${att.previewUrl})`).join('\n')
-      : '';
-    const markdown = `# ${ticketData.title || 'Untitled Ticket'}\n\n**Type:** ${ticketData.type}\n**Priority:** ${ticketData.priority}\n**Labels:** ${ticketData.labels.length > 0 ? ticketData.labels.join(', ') : 'None'}\n\n${ticketContent || ticketData.description}${imagesMarkdown}`;
+    const data = exportData();
+    const markdown = buildTicketMarkdown(data);
+    const attachments = data.attachments || [];
 
     try {
       if (attachments.length > 0 && typeof ClipboardItem !== 'undefined') {
-        const imagesHtml = attachments
-          .map(att => `<p><img src="${att.previewUrl}" alt="${att.name}" style="max-width:600px;" /></p>`)
-          .join('\n');
-        const html = `<h1>${ticketData.title || 'Untitled Ticket'}</h1>
-<p><strong>Type:</strong> ${ticketData.type}<br /><strong>Priority:</strong> ${ticketData.priority}<br /><strong>Labels:</strong> ${ticketData.labels.length > 0 ? ticketData.labels.join(', ') : 'None'}</p>
-<div>${(ticketContent || ticketData.description).replace(/\n/g, '<br />')}</div>
-${imagesHtml}`;
-        const blob = new Blob([html], { type: 'text/html' });
-        const textBlob = new Blob([markdown], { type: 'text/plain' });
+        const html = buildTicketHtml(data, { includeHeader: true });
         await navigator.clipboard.write([
           new ClipboardItem({
-            'text/html': blob,
-            'text/plain': textBlob,
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([markdown], { type: 'text/plain' }),
           }),
         ]);
       } else {
         await navigator.clipboard.writeText(markdown);
       }
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
+      confirmCopy('markdown', 'Ticket copied — ready to paste into JIRA');
+      setCurrentStep('done');
     } catch (err) {
       console.error('Copy failed:', err);
+      setToastMessage('Copy failed — your browser blocked clipboard access');
     }
-  }, [editedContent, generatedTicket, ticketData]);
+  }, [exportData, confirmCopy]);
 
   const handleClearDraft = useCallback(() => {
     clearDraft();
@@ -354,13 +377,23 @@ ${imagesHtml}`;
     setShowDraftBanner(false);
   }, [clearDraft]);
 
-  // Step navigation handler (Feature 7)
+  // Step navigation. Backwards is always allowed; forwards is allowed only when
+  // there's already a generated ticket to return to — otherwise the generated
+  // output was unreachable from Describe and users had to pay for a second
+  // generation to get back to it.
   const handleStepClick = useCallback((step: AppStep) => {
     const stepIndex: Record<AppStep, number> = { describe: 0, review: 1, done: 2 };
-    if (stepIndex[step] < stepIndex[currentStep]) {
+    const target = stepIndex[step];
+    const current = stepIndex[currentStep];
+
+    if (target < current) {
       setCurrentStep(step);
+      return;
     }
-  }, [currentStep]);
+    if (target > current && step === 'review' && generatedTicket) {
+      setCurrentStep('review');
+    }
+  }, [currentStep, generatedTicket]);
 
   const handleNewTicket = useCallback(() => {
     hookReset();
@@ -393,8 +426,6 @@ ${imagesHtml}`;
                 onChange={setSelectedProvider}
                 availableProviders={availableProviders}
                 isLoading={providerLoading}
-                error={providerError}
-                onRetry={fetchProviders}
               />
 
               <button
@@ -413,18 +444,42 @@ ${imagesHtml}`;
           </div>
         </header>
 
+        {/* Provider error — in flow, not an absolute popover hanging off the
+            header, which was overlaying the step indicator. */}
+        {providerError && (
+          <div
+            className="flex flex-wrap items-center gap-2 p-3 rounded-xl border text-sm bg-red-50/80 border-red-300 text-red-800 dark:bg-red-900/25 dark:border-red-800/60 dark:text-red-200"
+            role="alert"
+          >
+            <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            <span className="flex-1">{providerError}</span>
+            <button
+              onClick={fetchProviders}
+              className="flex items-center gap-1 font-semibold text-blue-700 dark:text-blue-300 hover:underline rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="button"
+            >
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Toast notification */}
-        {copySuccess && (
+        {toastMessage && (
           <Toast
-            message="Copied to clipboard!"
+            message={toastMessage}
             type="success"
-            onClose={() => setCopySuccess(false)}
+            onClose={() => setToastMessage(null)}
           />
         )}
 
         {/* Persistent step indicator */}
         <div className="flex justify-center">
-          <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
+          <StepIndicator
+            currentStep={currentStep}
+            onStepClick={handleStepClick}
+            canNavigateForwardTo={step => step === 'review' && !!generatedTicket}
+          />
         </div>
 
         {/* Step views — key forces remount for enter animation */}
@@ -440,6 +495,10 @@ ${imagesHtml}`;
               error={ticketError}
               showDraftBanner={showDraftBanner}
               draftTimestamp={draftTimestamp}
+              advancedOpen={advancedOpen}
+              onAdvancedOpenChange={setAdvancedOpen}
+              showMoreStyles={showMoreStyles}
+              onShowMoreStylesChange={setShowMoreStyles}
               onDescriptionChange={handleDescriptionChange}
               onTypeChange={handleTypeChange}
               onPriorityChange={handlePriorityChange}
@@ -475,11 +534,13 @@ ${imagesHtml}`;
               onCopy={handleCopyToClipboard}
               onCopyMarkdown={handleCopyAsMarkdown}
               onRefine={handleRefineTicket}
-              onBackToEdit={() => {
-                setTicketData(prev => ({ ...prev, title: '' }));
-                setCurrentStep('describe');
-              }}
-              copySuccess={copySuccess}
+              onUndo={undo}
+              canUndo={canUndo}
+              lastActionLabel={lastActionLabel}
+              // Keep the title when going back — it was clearing the
+              // LLM-authored title on every back-navigation.
+              onBackToEdit={() => setCurrentStep('describe')}
+              copiedTarget={copiedTarget}
               attachments={ticketData.attachments || []}
               onPreviewAttachment={setPreviewIndex}
             />
@@ -489,19 +550,29 @@ ${imagesHtml}`;
             <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-8 text-center">
               <CheckCircle className="w-16 h-16 mx-auto mb-4 text-emerald-500" aria-hidden="true" />
               <h2 className="text-xl font-bold mb-2 text-slate-800 dark:text-white">
-                Ticket Copied!
+                Ticket copied
               </h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
-                Your ticket has been copied to the clipboard.
+              <p className="text-slate-600 dark:text-slate-300 mb-6">
+                It&apos;s on your clipboard as Markdown — paste it into JIRA, or
+                head back to Review to keep refining.
               </p>
-              <button
-                onClick={handleNewTicket}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 font-semibold mx-auto shadow-xl hover:shadow-2xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                type="button"
-              >
-                <Plus className="w-5 h-5" aria-hidden="true" />
-                Create Another
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={() => setCurrentStep('review')}
+                  className="py-2.5 px-5 rounded-xl border text-sm font-medium bg-white/30 text-slate-700 border-white/50 hover:bg-white/50 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="button"
+                >
+                  Back to Review
+                </button>
+                <button
+                  onClick={handleNewTicket}
+                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 font-semibold shadow-xl hover:shadow-2xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                  type="button"
+                >
+                  <Plus className="w-5 h-5" aria-hidden="true" />
+                  Create Another
+                </button>
+              </div>
             </div>
           )}
         </div>

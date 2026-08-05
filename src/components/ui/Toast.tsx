@@ -30,8 +30,9 @@ export const Toast = memo(function Toast({ message, type = 'success', onClose }:
   return (
     <div
       className={`fixed top-6 right-6 backdrop-blur-xl text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce z-50 border border-white/20 dark:border-white/10 dark:shadow-black/30 ${styles[type]}`}
-      role="alert"
-      aria-live="polite"
+      // Errors interrupt; confirmations wait their turn.
+      role={type === 'error' ? 'alert' : 'status'}
+      aria-live={type === 'error' ? 'assertive' : 'polite'}
     >
       <Icon className="w-6 h-6" aria-hidden="true" />
       <span className="font-medium">{message}</span>

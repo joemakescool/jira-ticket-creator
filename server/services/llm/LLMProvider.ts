@@ -30,10 +30,41 @@ export interface LLMMessage {
   content: string | LLMContentPart[];
 }
 
+/**
+ * A JSON Schema the response must conform to.
+ *
+ * Only meaningful on providers reporting `supportsStructuredOutput`. Others
+ * ignore it, so callers must still tolerate non-conforming output.
+ *
+ * Anthropic's schema support is a subset of JSON Schema: every object needs
+ * `additionalProperties: false` and a `required` list, and free-form maps
+ * (`additionalProperties: {type: 'string'}`) are rejected — model those as
+ * arrays of key/value objects instead.
+ */
+export interface LLMJsonSchema {
+  name: string;
+  schema: Record<string, unknown>;
+}
+
+/**
+ * How much reasoning effort to spend. Higher settings think longer and cost
+ * more; lower ones return sooner. Providers that have no equivalent ignore it.
+ */
+export const LLM_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type LLMEffort = (typeof LLM_EFFORT_LEVELS)[number];
+
+export function isLLMEffort(value: string): value is LLMEffort {
+  return (LLM_EFFORT_LEVELS as readonly string[]).includes(value);
+}
+
 export interface LLMCompletionOptions {
   maxTokens?: number;
   temperature?: number;
   stopSequences?: string[];
+  /** Constrain the response to this schema where the provider supports it. */
+  jsonSchema?: LLMJsonSchema;
+  /** Overrides the provider's configured default effort for this call. */
+  effort?: LLMEffort;
 }
 
 export interface LLMCompletionResult {
@@ -52,6 +83,11 @@ export interface LLMProviderConfig {
   baseUrl?: string;
   /** Request timeout in milliseconds (default: 60000 for cloud, 120000 for local) */
   timeout?: number;
+  /**
+   * Default reasoning effort for every call to this provider. Operator-tunable
+   * so latency and cost can be adjusted without a code change.
+   */
+  effort?: LLMEffort;
 }
 
 /**
@@ -74,6 +110,13 @@ export interface LLMProvider {
 
   /** The model being used */
   readonly model: string;
+
+  /**
+   * True when the provider enforces `LLMCompletionOptions.jsonSchema` server-side,
+   * so the response is guaranteed parseable JSON. Callers use this to skip
+   * lenient repair/salvage parsing.
+   */
+  readonly supportsStructuredOutput: boolean;
 
   /**
    * Generate a completion from the LLM

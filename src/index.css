@@ -149,6 +149,17 @@
   animation: hint-slide-in 0.2s ease-out forwards;
 }
 
+/* Counterpart for hints that dismiss themselves — the element has to stay
+   mounted for the duration of this animation before it can be removed. */
+@keyframes hint-slide-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+
+.hint-exit {
+  animation: hint-slide-out 0.2s ease-in forwards;
+}
+
 /* Step view transition */
 @keyframes step-fade-in {
   from { opacity: 0; transform: translateY(6px); }

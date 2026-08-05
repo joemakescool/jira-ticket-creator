@@ -4,7 +4,7 @@
  */
 
 import { memo, useState, useRef, useEffect, useCallback, type ComponentType } from 'react';
-import { ChevronDown, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 import { ClaudeLogo, OpenAILogo, OllamaLogo } from './ProviderIcons';
 
 interface ProviderSelectorProps {
@@ -12,8 +12,6 @@ interface ProviderSelectorProps {
   onChange: (provider: string) => void;
   availableProviders: string[];
   isLoading?: boolean;
-  error?: string | null;
-  onRetry?: () => void;
 }
 
 const STANDARD_PROVIDERS = ['claude', 'openai', 'ollama'];
@@ -52,8 +50,6 @@ export const ProviderSelector = memo(function ProviderSelector({
   onChange,
   availableProviders,
   isLoading,
-  error,
-  onRetry,
 }: ProviderSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -142,24 +138,6 @@ export const ProviderSelector = memo(function ProviderSelector({
           aria-hidden="true"
         />
       </button>
-
-      {/* Inline error message */}
-      {error && (
-        <div className="absolute top-full right-0 mt-1.5 p-2.5 rounded-xl text-xs border shadow-lg backdrop-blur-xl bg-red-50/90 border-red-200 dark:bg-red-900/30 dark:border-red-800/50 whitespace-nowrap flex items-center gap-2 z-50 dropdown-enter" role="alert">
-          <AlertCircle className="w-3.5 h-3.5 text-red-500 dark:text-red-400 flex-shrink-0" aria-hidden="true" />
-          <span className="text-red-700 dark:text-red-300">{error}</span>
-          {onRetry && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRetry(); }}
-              className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-1"
-              type="button"
-            >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" />
-              Retry
-            </button>
-          )}
-        </div>
-      )}
 
       {showMenu && (
         <div

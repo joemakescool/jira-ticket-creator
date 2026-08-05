@@ -9,7 +9,14 @@
  * Dependency Inversion: Depends on LLMProvider interface, not implementations
  */
 
-import { LLMProvider, LLMMessage, LLMContentPart, LLMCompletionResult } from "../llm/LLMProvider.js";
+import {
+  LLMProvider,
+  LLMMessage,
+  LLMContentPart,
+  LLMCompletionResult,
+  LLMJsonSchema,
+} from "../llm/LLMProvider.js";
+import { ticketLogger as logger } from "../../lib/logger.js";
 import {
   TicketInput,
   TicketType,
@@ -24,6 +31,40 @@ import {
   buildRefinementPrompt,
   getTypeGuidance,
 } from "../../prompts/ticketPrompts.js";
+
+/**
+ * Schema for the generated-ticket JSON, used by providers that enforce
+ * structured output. Every object needs `additionalProperties: false` and a
+ * `required` list, and free-form maps aren't expressible — which is why
+ * `imageCaptions` is an array of name/caption pairs rather than an object.
+ */
+const TICKET_JSON_SCHEMA: LLMJsonSchema = {
+  name: "generated_ticket",
+  schema: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      type: { type: "string", enum: ["Task", "Story", "Bug", "Spike", "Epic"] },
+      priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+      labels: { type: "array", items: { type: "string" } },
+      content: { type: "string" },
+      imageCaptions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            caption: { type: "string" },
+          },
+          required: ["name", "caption"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["title", "type", "priority", "labels", "content"],
+    additionalProperties: false,
+  },
+};
 
 const VALID_TYPES: TicketType[] = ["Task", "Story", "Bug", "Spike", "Epic"];
 const VALID_PRIORITIES: TicketPriority[] = [
@@ -57,8 +98,6 @@ export class TicketService {
     input: TicketInput,
     provider: LLMProvider,
   ): Promise<GeneratedTicket> {
-    const needsAutoDetect =
-      !input.type || !input.priority || input.labels.length === 0;
     const prompt = buildTicketPrompt(input);
 
     const userMessage = this.buildUserMessage(prompt, input.attachments);
@@ -71,10 +110,13 @@ export class TicketService {
       {
         maxTokens: this.config.defaultMaxTokens,
         temperature: this.config.defaultTemperature,
+        jsonSchema: TICKET_JSON_SCHEMA,
       },
     );
 
-    // Always parse structured JSON — the prompt always requests it
+    // The prompt always requests JSON; providers advertising structured output
+    // additionally guarantee it, so the lenient repair path is only reachable
+    // for the others.
     const ticket = this.parseStructuredResponse(result, input);
     ticket.content = this.cleanLLMOutput(ticket.content);
     return ticket;
@@ -96,6 +138,9 @@ export class TicketService {
     const result = await provider.generate(prompt, {
       maxTokens: 50,
       temperature: 0.5,
+      // An eight-word title needs no deliberation; this is the cheapest and
+      // fastest path through the provider.
+      effort: 'low',
     });
 
     return result
@@ -225,7 +270,7 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
 
     content.push({
       type: "text",
-      text: `\n\nThe user has attached ${images.length} image(s) for additional context. Examine them carefully and incorporate relevant details into the ticket.\n\nAlso include an "imageCaptions" field in your JSON response — an object mapping each image filename to a brief one-sentence caption describing what it shows. Image filenames: ${images.map((a) => a.name).join(", ")}`,
+      text: `\n\nThe user has attached ${images.length} image(s) for additional context. Examine them carefully and incorporate relevant details into the ticket.\n\nAlso include an "imageCaptions" field in your JSON response — an array of objects, each with "name" (the image filename) and "caption" (a brief one-sentence description of what it shows). Image filenames: ${images.map((a) => a.name).join(", ")}`,
     });
 
     content.push(
@@ -264,8 +309,10 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
         type?: string;
         priority?: string;
         labels?: unknown[];
-        imageCaptions?: Record<string, string>;
+        imageCaptions?: unknown;
       };
+
+      const imageCaptions = this.normaliseImageCaptions(parsed.imageCaptions);
 
       const detectedType = this.validateType(parsed.type);
       const detectedPriority = this.validatePriority(parsed.priority);
@@ -292,18 +339,50 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
             priority: !input.priority && !!detectedPriority,
             labels: input.labels.length === 0 && detectedLabels.length > 0,
           },
-          ...(parsed.imageCaptions && { imageCaptions: parsed.imageCaptions }),
+          ...(imageCaptions && { imageCaptions }),
         },
       };
     } catch (err) {
-      // Fallback: treat entire response as content with defaults
-      console.error("Failed to parse structured response:", err);
+      // Fallback: treat entire response as content with defaults.
+      // Reaching here means the prompt and the parser disagreed, or the model
+      // ignored the JSON contract — the ticket still renders, but the
+      // LLM-authored title and aiSuggested metadata are lost.
+      logger.warn(
+        {
+          err,
+          model: result.model,
+          contentPreview: result.content.slice(0, 200),
+        },
+        "Failed to parse structured response — recovering fields individually",
+      );
+
+      // Salvage the fields directly. Without this, a response containing a code
+      // sample with quotes would surface the JSON envelope as the ticket body
+      // and a title of "{".
+      const salvagedContent = this.extractJsonString(result.content, "content");
+      const salvagedTitle = this.extractJsonString(result.content, "title");
+
+      const body = salvagedContent
+        ?? (this.looksLikeJsonEnvelope(result.content)
+          // Recognisable envelope we still can't read: better to say so than to
+          // paste JSON into the user's ticket.
+          ? ""
+          : result.content.trim());
+
       return {
-        content: result.content.trim(),
-        title: input.title || this.extractTitleFromContent(result.content),
+        content: body.trim(),
+        title:
+          salvagedTitle?.trim() ||
+          input.title ||
+          (body ? this.extractTitleFromContent(body) : "Untitled Ticket"),
         metadata: {
-          type: input.type || "Task",
-          priority: input.priority || "Medium",
+          type: this.validateType(this.extractJsonString(result.content, "type"))
+            ?? input.type
+            ?? "Task",
+          priority:
+            this.validatePriority(this.extractJsonString(result.content, "priority"))
+            ?? input.priority
+            ?? "Medium",
           labels: input.labels,
           generatedAt: new Date().toISOString(),
           model: result.model,
@@ -317,6 +396,106 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
    * LLMs frequently return multiline content in JSON strings without
    * escaping the newlines, which breaks JSON.parse.
    */
+  /**
+   * Extract one string field from a loosely-formed JSON object.
+   *
+   * Whole-document repair can't survive a fenced code sample inside `content`:
+   * quotes in the sample break the repair regex's idea of where strings end, so
+   * JSON.parse throws and the caller would otherwise surface the raw envelope.
+   * This scans for the key and walks its value, honouring backslash escapes and
+   * tolerating literal newlines. A quote only closes the value if the next
+   * non-whitespace character is `,` or `}` — which is what lets `const x = "y";`
+   * inside a code block pass through untouched.
+   */
+  private extractJsonString(src: string, key: string): string | null {
+    const keyIndex = src.indexOf(`"${key}"`);
+    if (keyIndex === -1) return null;
+
+    const colon = src.indexOf(':', keyIndex + key.length + 2);
+    if (colon === -1) return null;
+
+    let i = colon + 1;
+    while (i < src.length && /\s/.test(src[i])) i++;
+    if (src[i] !== '"') return null;
+
+    i++; // step past the opening quote
+    let out = '';
+    while (i < src.length) {
+      const ch = src[i];
+
+      if (ch === '\\') {
+        const next = src[i + 1];
+        // Preserve valid escapes; drop a stray backslash rather than corrupting.
+        if (next === 'n') out += '\n';
+        else if (next === 't') out += '\t';
+        else if (next === 'r') out += '\r';
+        else if (next === '"' || next === '\\' || next === '/') out += next;
+        else out += next ?? '';
+        i += 2;
+        continue;
+      }
+
+      if (ch === '"') {
+        let j = i + 1;
+        while (j < src.length && /\s/.test(src[j])) j++;
+        if (src[j] === ',' || src[j] === '}' || j >= src.length) {
+          return out;
+        }
+        // An interior quote (e.g. inside a code sample) — keep it.
+        out += ch;
+        i++;
+        continue;
+      }
+
+      out += ch;
+      i++;
+    }
+
+    // Ran out of input: the response was truncated mid-string. Return what we
+    // have rather than nothing — a partial ticket beats a raw JSON dump.
+    return out.length > 0 ? out : null;
+  }
+
+  /**
+   * Accept either shape of image captions.
+   *
+   * Structured-output providers return `[{name, caption}]` because Anthropic's
+   * schema subset can't express a free-form map; unconstrained providers tend to
+   * return `{name: caption}`. Both normalise to the record the UI consumes.
+   */
+  private normaliseImageCaptions(raw: unknown): Record<string, string> | null {
+    if (!raw) return null;
+
+    if (Array.isArray(raw)) {
+      const entries = raw
+        .filter(
+          (item): item is { name: string; caption: string } =>
+            typeof item === "object" &&
+            item !== null &&
+            typeof (item as { name?: unknown }).name === "string" &&
+            typeof (item as { caption?: unknown }).caption === "string",
+        )
+        .map(item => [item.name, item.caption] as const);
+
+      return entries.length > 0 ? Object.fromEntries(entries) : null;
+    }
+
+    if (typeof raw === "object") {
+      const entries = Object.entries(raw as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      );
+      return entries.length > 0 ? Object.fromEntries(entries) : null;
+    }
+
+    return null;
+  }
+
+  /** True when a response is an unparsed JSON envelope rather than markdown. */
+  private looksLikeJsonEnvelope(raw: string): boolean {
+    const trimmed = raw.trimStart();
+    return trimmed.startsWith('{') && /"content"\s*:/.test(trimmed);
+  }
+
   private safeParseJSON(str: string): Record<string, unknown> {
     try {
       return JSON.parse(str);

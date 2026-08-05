@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { LLMFactory } from '../server/services/llm/LLMFactory';
 import { ClaudeProvider } from '../server/services/llm/providers/ClaudeProvider';
 import { OpenAIProvider } from '../server/services/llm/providers/OpenAIProvider';
@@ -54,5 +54,45 @@ describe('LLMFactory', () => {
       const b = LLMFactory.create('claude', { apiKey: 'k' });
       expect(a).not.toBe(b);
     });
+  });
+});
+
+/**
+ * A misspelled CLAUDE_EFFORT should fail loudly. Silently falling back would
+ * look identical to the setting having been applied.
+ */
+describe('LLMFactory — CLAUDE_EFFORT validation', () => {
+  const original = process.env.CLAUDE_EFFORT;
+
+  beforeEach(() => {
+    LLMFactory.clearCache();
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+  });
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.CLAUDE_EFFORT;
+    else process.env.CLAUDE_EFFORT = original;
+    LLMFactory.clearCache();
+  });
+
+  it('accepts a valid level', () => {
+    process.env.CLAUDE_EFFORT = 'medium';
+    expect(() => LLMFactory.createFromEnv('claude')).not.toThrow();
+  });
+
+  it('is case- and whitespace-insensitive', () => {
+    process.env.CLAUDE_EFFORT = '  HIGH  ';
+    expect(() => LLMFactory.createFromEnv('claude')).not.toThrow();
+  });
+
+  it('throws on an invalid level, naming the allowed values', () => {
+    process.env.CLAUDE_EFFORT = 'mediumm';
+    expect(() => LLMFactory.createFromEnv('claude')).toThrow(/Invalid CLAUDE_EFFORT/);
+    expect(() => LLMFactory.createFromEnv('claude')).toThrow(/low, medium, high, xhigh, max/);
+  });
+
+  it('is optional', () => {
+    delete process.env.CLAUDE_EFFORT;
+    expect(() => LLMFactory.createFromEnv('claude')).not.toThrow();
   });
 });

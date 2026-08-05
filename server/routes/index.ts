@@ -13,7 +13,7 @@ const router = Router();
 /**
  * Health check — returns server status, uptime, and configured providers
  */
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     uptime: Math.floor(process.uptime()),
@@ -26,7 +26,7 @@ router.get('/health', (req, res) => {
 /**
  * List available providers
  */
-router.get('/providers', (req, res) => {
+router.get('/providers', (_req, res) => {
   const providers = LLMFactory.getAvailableProviders();
   res.json({
     providers,

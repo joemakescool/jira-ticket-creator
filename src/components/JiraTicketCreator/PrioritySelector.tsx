@@ -4,28 +4,13 @@
  */
 
 import { memo } from 'react';
-import { PRIORITIES } from './constants';
+import { PRIORITIES, SELECTION_STYLES, SEMANTIC_ICON_COLORS } from './constants';
 import type { TicketFormData } from './types';
 
 interface PrioritySelectorProps {
   value: TicketFormData['priority'];
   onChange: (priority: TicketFormData['priority']) => void;
 }
-
-const getPriorityStyles = (name: string, isSelected: boolean) => {
-  if (!isSelected) {
-    return 'bg-white/20 border-white/30 text-slate-600 hover:border-white/50 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:border-slate-600';
-  }
-
-  const colorStyles: Record<string, string> = {
-    Low: 'bg-green-100 border-green-500 text-green-700 shadow-md shadow-green-500/20 dark:bg-green-600/30 dark:text-green-400',
-    Medium: 'bg-yellow-100 border-yellow-500 text-yellow-700 shadow-md shadow-yellow-500/20 dark:bg-yellow-600/30 dark:text-yellow-400',
-    High: 'bg-orange-100 border-orange-500 text-orange-700 shadow-md shadow-orange-500/20 dark:bg-orange-600/30 dark:text-orange-400',
-    Critical: 'bg-red-100 border-red-500 text-red-700 shadow-md shadow-red-500/20 dark:bg-red-600/30 dark:text-red-400',
-  };
-
-  return colorStyles[name] || colorStyles.Medium;
-};
 
 export const PrioritySelector = memo(function PrioritySelector({
   value,
@@ -35,7 +20,7 @@ export const PrioritySelector = memo(function PrioritySelector({
     <div>
       <label
         id="priority-label"
-        className="block text-xs font-semibold mb-1 text-slate-700 dark:text-slate-300"
+        className="block text-sm font-semibold mb-1 text-slate-800 dark:text-slate-200"
       >
         Priority
       </label>
@@ -52,16 +37,18 @@ export const PrioritySelector = memo(function PrioritySelector({
             <button
               key={priority.name}
               onClick={() => onChange(priority.name)}
-              className={`px-2 py-1 rounded-lg border-2 transition-all duration-200 press-effect flex items-center gap-1 ${getPriorityStyles(
-                priority.name,
-                isSelected,
-              )}`}
+              className={`px-2.5 py-1.5 rounded-lg border-2 transition-all duration-200 press-effect flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-slate-800 ${
+                isSelected ? SELECTION_STYLES.selected : SELECTION_STYLES.unselected
+              }`}
               role="radio"
               aria-checked={isSelected}
               aria-label={`${priority.name} priority`}
               type="button"
             >
-              <Icon className="w-3 h-3" aria-hidden="true" />
+              <Icon
+                className={`w-3.5 h-3.5 ${SEMANTIC_ICON_COLORS[priority.name] ?? ''}`}
+                aria-hidden="true"
+              />
               <span className="text-xs font-medium">{priority.name}</span>
             </button>
           );

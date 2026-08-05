@@ -38,6 +38,9 @@ export class OpenAIProvider implements LLMProvider {
   readonly name = 'openai';
   readonly model: string;
 
+  /** OpenAI has its own structured-output surface; not wired up here yet. */
+  readonly supportsStructuredOutput = false;
+
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly timeout: number;

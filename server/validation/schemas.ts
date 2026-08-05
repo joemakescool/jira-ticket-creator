@@ -8,13 +8,16 @@
 import { z } from 'zod';
 import { LLM_PROVIDERS } from '../services/llm/LLMProvider.js';
 
-// Constants for validation
-const MAX_DESCRIPTION_LENGTH = 5000;
-const MAX_TITLE_LENGTH = 100;
-const MAX_LABEL_LENGTH = 50;
-const MAX_LABELS = 10;
-const MAX_ATTACHMENTS = 10;
-const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB base64
+import {
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_SIZE,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_LABELS,
+  MAX_LABEL_LENGTH,
+  MAX_TICKET_CONTENT_LENGTH,
+  MAX_TITLE_LENGTH,
+  SUPPORTED_IMAGE_MEDIA_TYPES,
+} from '../lib/limits.js';
 
 // Valid provider names (derived from LLM_PROVIDERS source of truth)
 const providerValues = Object.values(LLM_PROVIDERS) as [string, ...string[]];
@@ -36,15 +39,38 @@ export const refinementStyleSchema = z.enum([
   'acceptance',
 ]);
 
-// Attachment schema
-export const attachmentSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  mediaType: z.string(),
-  data: z.string().max(MAX_ATTACHMENT_SIZE, 'Attachment too large (max 10MB)'),
-  previewUrl: z.string(),
-  size: z.number().default(0),
-});
+/**
+ * Attachment schema.
+ *
+ * `mediaType` stays a free-form string because non-image files are supported
+ * (they're referenced by name in the prompt), but anything claiming to be an
+ * image must be a type the vision API actually accepts. Without this the value
+ * was cast unchecked in TicketService and an `image/svg+xml` upload reached
+ * Anthropic and failed the whole generation.
+ */
+export const attachmentSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().max(255),
+    mediaType: z.string().min(1).max(128),
+    data: z
+      .string()
+      .max(
+        MAX_ATTACHMENT_SIZE,
+        `Attachment too large (max ${Math.floor(MAX_ATTACHMENT_SIZE / (1024 * 1024))}MB)`,
+      ),
+    previewUrl: z.string(),
+    size: z.number().default(0),
+  })
+  .refine(
+    att =>
+      !att.mediaType.startsWith('image/') ||
+      (SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(att.mediaType),
+    {
+      message: `Unsupported image type. Use one of: ${SUPPORTED_IMAGE_MEDIA_TYPES.join(', ')}`,
+      path: ['mediaType'],
+    },
+  );
 
 // Ticket input schema
 export const ticketInputSchema = z.object({
@@ -85,7 +111,7 @@ export const refineTicketSchema = z.object({
   currentTicket: z
     .string()
     .min(1, 'Current ticket content is required')
-    .max(10000, 'Ticket content too long'),
+    .max(MAX_TICKET_CONTENT_LENGTH, 'Ticket content too long'),
   style: refinementStyleSchema,
   provider: providerSchema.optional(),
 });
@@ -95,7 +121,7 @@ export const regenerateTicketSchema = z.object({
   currentTicket: z
     .string()
     .min(1, 'Current ticket content is required')
-    .max(10000, 'Ticket content too long'),
+    .max(MAX_TICKET_CONTENT_LENGTH, 'Ticket content too long'),
   title: z.string().max(MAX_TITLE_LENGTH).optional(),
   type: ticketTypeSchema.optional(),
   priority: prioritySchema.optional(),

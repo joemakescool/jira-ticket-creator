@@ -69,6 +69,60 @@ describe('buildTicketPrompt', () => {
   });
 });
 
+/**
+ * TicketService.parseStructuredResponse always parses JSON, so every prompt
+ * shape must request it. Previously the fully-specified branch asked for raw
+ * markdown, so supplying labels (with type/priority defaulted by the UI) sent
+ * the response down the parser's error-fallback path — losing the LLM-authored
+ * title and all aiSuggested metadata.
+ */
+describe('buildTicketPrompt — JSON contract holds for every input shape', () => {
+  const shapes: [string, TicketInput][] = [
+    ['fully specified', baseInput],
+    ['type missing', { ...baseInput, type: undefined }],
+    ['priority missing', { ...baseInput, priority: undefined }],
+    ['labels empty', { ...baseInput, labels: [] }],
+    ['nothing specified', {
+      description: baseInput.description,
+      template: 'Basic',
+      labels: [],
+    }],
+    ['UI defaults plus a label', {
+      description: baseInput.description,
+      type: 'Task',
+      priority: 'Medium',
+      labels: ['auth'],
+      template: 'Basic',
+    }],
+  ];
+
+  it.each(shapes)('requests a JSON response when %s', (_name, input) => {
+    const prompt = buildTicketPrompt(input);
+    expect(prompt).toContain('ONLY valid JSON');
+    for (const field of ['"title"', '"type"', '"priority"', '"labels"', '"content"']) {
+      expect(prompt).toContain(field);
+    }
+  });
+
+  it.each(shapes)('never asks for raw markdown instead of JSON when %s', (_name, input) => {
+    expect(buildTicketPrompt(input)).not.toMatch(/Return only .*raw markdown/);
+  });
+
+  it('echoes user-specified values into the contract rather than <detected>', () => {
+    const prompt = buildTicketPrompt(baseInput);
+    expect(prompt).toContain('"type": "Bug"');
+    expect(prompt).toContain('"priority": "High"');
+    expect(prompt).toContain('"labels": ["auth","backend"]');
+    expect(prompt).not.toContain('<detected>');
+  });
+
+  it('marks only the missing fields as <detected>', () => {
+    const prompt = buildTicketPrompt({ ...baseInput, priority: undefined });
+    expect(prompt).toContain('"priority": "<detected>"');
+    expect(prompt).toContain('"type": "Bug"');
+  });
+});
+
 describe('buildTitlePrompt', () => {
   it('includes the description', () => {
     const prompt = buildTitlePrompt('Payment processing fails intermittently');

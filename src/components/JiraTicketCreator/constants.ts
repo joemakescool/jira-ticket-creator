@@ -20,6 +20,39 @@ export interface TicketTypeConfig {
   color: string;
 }
 
+/**
+ * Shared selection tokens.
+ *
+ * "Selected" is expressed with one accent (blue) everywhere — chips, segmented
+ * controls, and cards, in both steps. Previously Type used blue, Priority amber,
+ * Template purple and Writing Style indigo, so users had no reliable signal for
+ * what "selected" looked like, and amber on Medium priority read as a warning.
+ *
+ * Category identity (Bug is red, Critical is red, Low is green) is preserved by
+ * tinting the chip's *icon* instead of the whole chip — see SEMANTIC_ICON_COLORS.
+ */
+export const SELECTION_STYLES = {
+  selected:
+    'bg-blue-50 border-blue-600 text-blue-800 shadow-md shadow-blue-500/20 dark:bg-blue-500/25 dark:border-blue-400 dark:text-blue-100',
+  unselected:
+    'bg-white/20 border-white/40 text-slate-700 hover:border-white/70 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-600 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700/30',
+} as const;
+
+/** Category tints, applied to icons only — never to the selected background. */
+export const SEMANTIC_ICON_COLORS: Record<string, string> = {
+  // Ticket types
+  Task: 'text-blue-600 dark:text-blue-400',
+  Story: 'text-emerald-600 dark:text-emerald-400',
+  Bug: 'text-red-600 dark:text-red-400',
+  Spike: 'text-violet-600 dark:text-violet-400',
+  Epic: 'text-orange-600 dark:text-orange-400',
+  // Priorities
+  Low: 'text-emerald-600 dark:text-emerald-400',
+  Medium: 'text-slate-600 dark:text-slate-400',
+  High: 'text-orange-600 dark:text-orange-400',
+  Critical: 'text-red-600 dark:text-red-400',
+};
+
 export const TICKET_TYPES: TicketTypeConfig[] = [
   { value: 'Task', icon: CheckSquare, color: 'blue' },
   { value: 'Story', icon: FileText, color: 'green' },

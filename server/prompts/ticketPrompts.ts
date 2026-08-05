@@ -31,9 +31,32 @@ You use markdown formatting effectively:
 You never include the ticket type in the output (it's metadata, not content).`;
 
 /**
+ * The JSON response contract. Every ticket-generation prompt ends with this so
+ * TicketService.parseStructuredResponse always has JSON to parse — the two must
+ * agree, or the service silently falls back and loses the LLM-authored title
+ * and metadata. Fields the user already specified are echoed back rather than
+ * left as `<detected>`.
+ */
+function buildJsonResponseContract(input: TicketInput): string {
+  const { type, priority, labels } = input;
+
+  return `**CRITICAL: Respond with ONLY valid JSON in this exact format (no other text):**
+\`\`\`json
+{
+  "title": "Concise ticket title (max 8 words, start with action verb)",
+  "type": "${type || '<detected>'}",
+  "priority": "${priority || '<detected>'}",
+  "labels": ${labels.length > 0 ? JSON.stringify(labels) : '["label1", "label2"]'},
+  "content": "The full improved markdown ticket content (NOT a copy of the input). Start with ### Context. Include all relevant sections and Acceptance Criteria with checkboxes."
+}
+\`\`\``;
+}
+
+/**
  * Generate the main ticket content.
- * When type/priority/labels are not provided, requests structured JSON
- * so the service can parse out AI-detected metadata.
+ * Always requests structured JSON so the service can parse out title, content,
+ * and metadata. When type/priority/labels are missing, additionally asks the
+ * LLM to detect them.
  */
 export function buildTicketPrompt(input: TicketInput): string {
   const { title, description, type, priority, labels, template, writingStyle } = input;
@@ -67,14 +90,14 @@ ${templateGuidance}
 
 ${styleGuidance}
 
-**Format Requirements:**
+**Format Requirements (for the "content" field):**
 - Start immediately with ### Context — do NOT include a title heading (## or #)
 - Include "Acceptance Criteria" with checkboxes (- [ ])
 - Do NOT include the ticket type in the output
-- Do NOT wrap output in code fences (\`\`\`markdown or \`\`\`)
+- Do NOT wrap the content in code fences (\`\`\`markdown or \`\`\`)
 - Use markdown formatting (###, -, **bold**) throughout
 
-Return only the formatted ticket content as raw markdown, no wrapping or explanations.`;
+${buildJsonResponseContract(input)}`;
 }
 
 /**
@@ -137,16 +160,7 @@ ${styleGuidance}
 - Do NOT wrap output in code fences (\`\`\`markdown or \`\`\`)
 - Even if the input is already well-structured, add value by improving wording, filling gaps, and tightening language
 
-**CRITICAL: Respond with ONLY valid JSON in this exact format (no other text):**
-\`\`\`json
-{
-  "title": "Concise ticket title (max 8 words, start with action verb)",
-  "type": "${type || '<detected>'}",
-  "priority": "${priority || '<detected>'}",
-  "labels": ${labels.length > 0 ? JSON.stringify(labels) : '["label1", "label2"]'},
-  "content": "The full improved markdown ticket content (NOT a copy of the input). Start with ### Context. Include all relevant sections and Acceptance Criteria with checkboxes."
-}
-\`\`\``;
+${buildJsonResponseContract(input)}`;
 }
 
 /**

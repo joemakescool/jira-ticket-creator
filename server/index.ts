@@ -22,6 +22,7 @@ import { LLMFactory } from './services/llm/index.js';
 import { serverLogger as logger } from './lib/logger.js';
 import { ApiError } from './lib/errors.js';
 import { validateEnv } from './lib/env.js';
+import { MAX_REQUEST_BODY_LIMIT } from './lib/limits.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,8 +57,10 @@ app.use(
   })
 );
 
-// Request parsing with size limits (50mb to support base64 image attachments)
-app.use(express.json({ limit: '50mb' }));
+// Request parsing. The limit is derived from the attachment limits the Zod
+// schemas enforce, so the parser can't reject a payload the schema would have
+// accepted (or vice versa) — see server/lib/limits.ts.
+app.use(express.json({ limit: MAX_REQUEST_BODY_LIMIT }));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -101,7 +104,7 @@ if (!isDev) {
   app.use(express.static(clientPath));
 
   // SPA fallback: serve index.html for all non-API routes
-  app.get('*', (req, res) => {
+  app.get('*', (_req, res) => {
     res.sendFile(path.join(clientPath, 'index.html'));
   });
 }

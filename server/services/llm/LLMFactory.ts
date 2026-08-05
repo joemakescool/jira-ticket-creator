@@ -3,6 +3,9 @@ import {
   LLMProviderConfig,
   LLMProviderName,
   LLM_PROVIDERS,
+  LLM_EFFORT_LEVELS,
+  LLMEffort,
+  isLLMEffort,
 } from './LLMProvider.js';
 import { ClaudeProvider } from './providers/ClaudeProvider.js';
 import { OpenAIProvider } from './providers/OpenAIProvider.js';
@@ -23,6 +26,36 @@ import { OllamaProvider } from './providers/OllamaProvider.js';
  *   const provider = LLMFactory.create('claude', { apiKey: '...' });
  *   const ticket = await provider.generate(prompt);
  */
+/**
+ * Read an effort level from the environment, failing loudly on a typo rather
+ * than silently falling back — a misspelled value would otherwise look like the
+ * setting had been applied.
+ */
+function readEffort(envVar: string): LLMEffort | undefined {
+  const raw = process.env[envVar];
+  if (!raw) return undefined;
+
+  const value = raw.trim().toLowerCase();
+  if (!isLLMEffort(value)) {
+    throw new Error(
+      `Invalid ${envVar}="${raw}". Must be one of: ${LLM_EFFORT_LEVELS.join(', ')}`,
+    );
+  }
+  return value;
+}
+
+/** Per-request provider timeout, in milliseconds. Falls back to the provider's own default. */
+function readTimeout(): number | undefined {
+  const raw = process.env.LLM_TIMEOUT_MS;
+  if (!raw) return undefined;
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid LLM_TIMEOUT_MS="${raw}". Must be a positive number of milliseconds.`);
+  }
+  return value;
+}
+
 export class LLMFactory {
   private static providers: Map<string, LLMProvider> = new Map();
 
@@ -128,6 +161,8 @@ export class LLMFactory {
         return {
           apiKey: process.env.ANTHROPIC_API_KEY || '',
           model: process.env.CLAUDE_MODEL,
+          effort: readEffort('CLAUDE_EFFORT'),
+          timeout: readTimeout(),
         };
       
       case LLM_PROVIDERS.OPENAI:

@@ -29,7 +29,13 @@ export function validate<T>(schema: ZodSchema<T>) {
           message: issue.message,
         }));
 
-        logger.warn({ errors, body: req.body }, 'Validation failed');
+        // Field paths and messages only — never the body. Requests carry
+        // base64 attachments, so logging the payload dumped tens of megabytes
+        // into the logs on a single oversized-image rejection.
+        logger.warn(
+          { errors, path: req.path, fieldCount: errors.length },
+          'Validation failed',
+        );
 
         return res.status(400).json({
           error: 'Validation failed',

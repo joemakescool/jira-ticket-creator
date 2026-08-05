@@ -8,6 +8,8 @@ function mockProvider(content: string): LLMProvider {
   return {
     name: 'mock',
     model: 'mock-model',
+    // Exercises the lenient parse path, which is what these tests are about.
+    supportsStructuredOutput: false,
     complete: vi.fn().mockResolvedValue({
       content,
       model: 'mock-model',
@@ -23,6 +25,19 @@ const autoDetectInput: TicketInput = {
   template: 'Basic',
   labels: [],
   // type, priority omitted to trigger auto-detect
+};
+
+/**
+ * The shape the UI actually produces once a user adds a label: type and
+ * priority are always populated from the form defaults, so this bypasses the
+ * auto-detect branch entirely. This is the case the original fixtures missed.
+ */
+const fullySpecifiedInput: TicketInput = {
+  description: 'Investigate Bruno API client',
+  type: 'Task',
+  priority: 'Medium',
+  labels: ['api'],
+  template: 'Basic',
 };
 
 describe('TicketService.generateTicket — JSON parsing', () => {
@@ -67,5 +82,196 @@ describe('TicketService.generateTicket — JSON parsing', () => {
     expect(ticket.metadata.priority).toBe('Medium');
     // Leading ## title stripped, body content preserved
     expect(ticket.content).toContain('Just plain markdown content.');
+  });
+});
+
+/**
+ * The Auto type/priority option sends `undefined`, which is what makes the
+ * prompt's auto-detect branch fire. These assert the `aiSuggested` flags the
+ * Review screen badges depend on — they were unreachable while the form always
+ * sent a concrete Task/Medium.
+ */
+describe('TicketService.generateTicket — AI attribution flags', () => {
+  const service = new TicketService();
+
+  const jsonResponse = JSON.stringify({
+    title: 'Fix CSV export truncation',
+    type: 'Bug',
+    priority: 'High',
+    labels: ['export', 'backend'],
+    content: '### Context\n\nExport stops at 1000 rows.',
+  });
+
+  it('flags type, priority and labels as AI-suggested when none were provided', async () => {
+    const ticket = await service.generateTicket(
+      autoDetectInput,
+      mockProvider(jsonResponse),
+    );
+
+    expect(ticket.metadata.type).toBe('Bug');
+    expect(ticket.metadata.priority).toBe('High');
+    expect(ticket.metadata.labels).toEqual(['export', 'backend']);
+    expect(ticket.metadata.aiSuggested).toEqual({
+      type: true,
+      priority: true,
+      labels: true,
+    });
+  });
+
+  it('does not flag fields the user chose explicitly', async () => {
+    const ticket = await service.generateTicket(
+      { ...autoDetectInput, type: 'Task', priority: 'Low' },
+      mockProvider(jsonResponse),
+    );
+
+    expect(ticket.metadata.aiSuggested).toEqual({
+      type: false,
+      priority: false,
+      labels: true,
+    });
+    // A user-chosen value wins over the model's suggestion.
+    expect(ticket.metadata.type).toBe('Bug');
+  });
+
+  it('reports labels as not AI-suggested when the model returns none', async () => {
+    const ticket = await service.generateTicket(
+      autoDetectInput,
+      mockProvider(JSON.stringify({
+        title: 'T',
+        type: 'Bug',
+        priority: 'High',
+        labels: [],
+        content: '### Context\n\nBody.',
+      })),
+    );
+
+    expect(ticket.metadata.aiSuggested?.labels).toBe(false);
+    expect(ticket.metadata.labels).toEqual([]);
+  });
+});
+
+/**
+ * Regression: a ticket body containing a fenced code sample with quotes breaks
+ * whole-document JSON repair. Before field-level salvage, the envelope itself
+ * was surfaced as the ticket body with a title of "{".
+ */
+describe('TicketService.generateTicket — malformed JSON envelopes', () => {
+  const service = new TicketService();
+
+  // Literal newlines *and* unescaped inner quotes — the shape Opus 5 actually
+  // returned for a Bug ticket that included a code sample.
+  const codeFenceResponse = [
+    '{',
+    '  "title": "Fix unresponsive Export button on Reports page",',
+    '  "type": "Bug",',
+    '  "priority": "High",',
+    '  "labels": ["frontend"],',
+    '  "content": "### Context',
+    '',
+    'The click handler never fires.',
+    '',
+    '```js',
+    'const label = "Export";',
+    'console.log("clicked");',
+    '```',
+    '',
+    '### Acceptance Criteria',
+    '- [ ] Button triggers a download"',
+    '}',
+  ].join('\n');
+
+  it('never surfaces the JSON envelope as the ticket body', async () => {
+    const ticket = await service.generateTicket(
+      fullySpecifiedInput,
+      mockProvider(codeFenceResponse),
+    );
+
+    expect(ticket.content.trimStart().startsWith('{')).toBe(false);
+    expect(ticket.content).not.toContain('"labels"');
+    expect(ticket.title).not.toBe('{');
+  });
+
+  it('salvages the markdown body including the code sample', async () => {
+    const ticket = await service.generateTicket(
+      fullySpecifiedInput,
+      mockProvider(codeFenceResponse),
+    );
+
+    expect(ticket.content).toContain('### Context');
+    expect(ticket.content).toContain('### Acceptance Criteria');
+    expect(ticket.content).toContain('- [ ] Button triggers a download');
+    // Quotes inside the fenced sample must survive untouched.
+    expect(ticket.content).toContain('const label = "Export";');
+  });
+
+  it('salvages the title and metadata from the envelope', async () => {
+    const ticket = await service.generateTicket(
+      fullySpecifiedInput,
+      mockProvider(codeFenceResponse),
+    );
+
+    expect(ticket.title).toBe('Fix unresponsive Export button on Reports page');
+    expect(ticket.metadata.type).toBe('Bug');
+    expect(ticket.metadata.priority).toBe('High');
+  });
+
+  it('recovers a partial body when the response is truncated mid-string', async () => {
+    const truncated = [
+      '{',
+      '  "title": "Add rate limiting to the login endpoint",',
+      '  "content": "### Context',
+      '',
+      'Login is unthrottled and brute-forceable. We should',
+    ].join('\n');
+
+    const ticket = await service.generateTicket(
+      fullySpecifiedInput,
+      mockProvider(truncated),
+    );
+
+    expect(ticket.title).toBe('Add rate limiting to the login endpoint');
+    expect(ticket.content).toContain('### Context');
+    expect(ticket.content.trimStart().startsWith('{')).toBe(false);
+  });
+
+  it('leaves a plain markdown response untouched', async () => {
+    const ticket = await service.generateTicket(
+      fullySpecifiedInput,
+      mockProvider('### Context\n\nPlain markdown, no JSON at all.'),
+    );
+
+    expect(ticket.content).toContain('Plain markdown, no JSON at all.');
+  });
+});
+
+describe('TicketService.generateTicket — fully specified input', () => {
+  const service = new TicketService();
+
+  it('uses the LLM-authored title instead of scraping it from content', async () => {
+    const provider = mockProvider(
+      '```json\n{"title":"Evaluate Bruno as Postman replacement","type":"Task","priority":"Medium","labels":["api"],"content":"### Context\\nWe need an API client."}\n```'
+    );
+
+    const ticket = await service.generateTicket(fullySpecifiedInput, provider);
+
+    expect(ticket.title).toBe('Evaluate Bruno as Postman replacement');
+    expect(ticket.content).toBe('### Context\nWe need an API client.');
+    expect(ticket.metadata.labels).toEqual(['api']);
+  });
+
+  it('does not mangle content when the ticket body contains braces', async () => {
+    // The fallback brace regex is greedy — if the parser ever reaches it with a
+    // markdown body containing JSON examples, it can swallow the whole ticket.
+    const body =
+      '### Context\\nThe endpoint returns {\\"status\\": \\"error\\"} on failure.\\n\\n### Acceptance Criteria\\n- [ ] Handle it';
+    const provider = mockProvider(
+      `\`\`\`json\n{"title":"Handle error payload","type":"Task","priority":"Medium","labels":["api"],"content":"${body}"}\n\`\`\``
+    );
+
+    const ticket = await service.generateTicket(fullySpecifiedInput, provider);
+
+    expect(ticket.title).toBe('Handle error payload');
+    expect(ticket.content).toContain('### Acceptance Criteria');
+    expect(ticket.content).toContain('{"status": "error"}');
   });
 });

@@ -21,13 +21,19 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
   onClose,
   onNavigate,
 }: ImagePreviewModalProps) {
+  // `current` may be undefined if the index goes stale (e.g. an attachment is
+  // removed while the modal is open). Guard the derived values rather than
+  // returning early — an early return here would skip the hooks below and
+  // change hook order between renders.
   const current = attachments[currentIndex];
-  if (!current) return null;
 
   const imageAttachments = attachments.filter(isImageAttachment);
-  const currentImageIndex = imageAttachments.findIndex(a => a.id === current.id);
+  const currentImageIndex = current
+    ? imageAttachments.findIndex(a => a.id === current.id)
+    : -1;
   const hasPrev = currentImageIndex > 0;
-  const hasNext = currentImageIndex < imageAttachments.length - 1;
+  const hasNext =
+    currentImageIndex >= 0 && currentImageIndex < imageAttachments.length - 1;
 
   const goToPrev = useCallback(() => {
     if (hasPrev) {
@@ -55,8 +61,8 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, goToPrev, goToNext]);
 
-  // Only show preview for images
-  if (!isImageAttachment(current)) return null;
+  // Only show preview for images (and bail on a stale index)
+  if (!current || !isImageAttachment(current)) return null;
 
   return (
     <div

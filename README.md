@@ -179,7 +179,7 @@ The frontend never sees API keys. All LLM calls are proxied through the Express 
 
 | Provider | Model | Status |
 |----------|-------|--------|
-| Anthropic Claude | claude-sonnet-4-20250514 | Ready |
+| Anthropic Claude | claude-opus-5 | Ready |
 | OpenAI | gpt-4o | Ready |
 | Ollama (local) | llama3, mistral, etc. | Ready |
 

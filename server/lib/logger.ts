@@ -7,10 +7,14 @@
 
 import pino from 'pino';
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isTest = process.env.NODE_ENV === 'test';
+const isDev = !isTest && process.env.NODE_ENV !== 'production';
 
+// pino-pretty runs in a worker thread. Under test that worker keeps the process
+// alive and interleaves output with the test reporter, so use plain pino there
+// and stay silent unless LOG_LEVEL is set explicitly.
 export const logger = pino({
-  level: process.env.LOG_LEVEL || (isDev ? 'debug' : 'info'),
+  level: process.env.LOG_LEVEL || (isTest ? 'silent' : isDev ? 'debug' : 'info'),
   transport: isDev
     ? {
         target: 'pino-pretty',

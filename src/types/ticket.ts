@@ -24,6 +24,32 @@ export type RefinementStyle =
  */
 export type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
+/**
+ * Attachment limits — shared so the browser can't accept a file the API will
+ * reject. The server validates the *base64* length; the browser sees raw bytes,
+ * and base64 inflates by 4/3, hence the two constants.
+ */
+export const SUPPORTED_IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+];
+
+/** Max base64 characters per attachment, as enforced by the API. */
+export const MAX_ATTACHMENT_BASE64 = 5 * 1024 * 1024;
+
+/** The raw file size that encodes to at most MAX_ATTACHMENT_BASE64. */
+export const MAX_ATTACHMENT_BYTES = Math.floor((MAX_ATTACHMENT_BASE64 * 3) / 4);
+
+export const MAX_ATTACHMENTS = 10;
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
 export interface Attachment {
   /** Unique ID for this attachment */
   id: string;

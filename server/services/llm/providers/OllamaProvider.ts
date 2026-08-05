@@ -1,7 +1,6 @@
 import {
   LLMProvider,
   LLMMessage,
-  LLMContentPart,
   LLMCompletionOptions,
   LLMCompletionResult,
   LLMProviderConfig,
@@ -41,6 +40,8 @@ interface OllamaTagsResponse {
 export class OllamaProvider implements LLMProvider {
   readonly name = 'ollama';
   readonly model: string;
+  /** Local models aren't schema-constrained — the lenient parser handles these. */
+  readonly supportsStructuredOutput = false;
 
   private readonly baseUrl: string;
   private readonly timeout: number;

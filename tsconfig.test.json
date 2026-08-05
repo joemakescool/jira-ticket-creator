@@ -1,0 +1,12 @@
+{
+  // Tests were previously in no tsconfig at all, so mocks could silently drift
+  // out of sync with the interfaces they implement — a required member was added
+  // to LLMProvider and nothing flagged the stale mock, because vitest transpiles
+  // without typechecking. `npm run typecheck` now covers this project too.
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["tests/**/*", "server/**/*", "src/types/**/*"]
+}

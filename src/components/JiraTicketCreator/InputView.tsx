@@ -4,7 +4,14 @@
  */
 
 import { memo, useState, useCallback, useEffect } from "react";
-import { AlertCircle, Lightbulb, Clock, X, RotateCcw } from "lucide-react";
+import {
+  AlertCircle,
+  Lightbulb,
+  Clock,
+  X,
+  RotateCcw,
+  Paperclip,
+} from "lucide-react";
 import { DescriptionEditor } from "./DescriptionEditor";
 import { TicketTypeSelector } from "./TicketTypeSelector";
 import { PrioritySelector } from "./PrioritySelector";
@@ -52,6 +59,15 @@ interface InputViewProps {
   error?: string | null;
   showDraftBanner?: boolean;
   draftTimestamp?: number | null;
+  /**
+   * Advanced Options disclosure state. Owned by the parent because InputView is
+   * remounted on every step change (`key={currentStep}`), which would otherwise
+   * collapse the panel whenever the user generates or navigates back.
+   */
+  advancedOpen: boolean;
+  onAdvancedOpenChange: (isOpen: boolean) => void;
+  showMoreStyles: boolean;
+  onShowMoreStylesChange: (showMore: boolean) => void;
   onDescriptionChange: (value: string) => void;
   onTypeChange: (type: string) => void;
   onPriorityChange: (priority: string) => void;
@@ -78,6 +94,10 @@ export const InputView = memo(function InputView({
   error,
   showDraftBanner,
   draftTimestamp,
+  advancedOpen,
+  onAdvancedOpenChange,
+  showMoreStyles,
+  onShowMoreStylesChange,
   onDescriptionChange,
   onTypeChange,
   onPriorityChange,
@@ -109,39 +129,21 @@ export const InputView = memo(function InputView({
   >({});
   const [showHelpers, setShowHelpers] = useState(false);
 
-  // Generation progress timer
+  // Generation progress timer. The phase resets in cleanup rather than in the
+  // effect body so no setState runs synchronously on a non-generating render.
   useEffect(() => {
-    if (!isGenerating) {
-      setGenerationPhase(0);
-      return;
-    }
+    if (!isGenerating) return;
+
     const timers = [
       setTimeout(() => setGenerationPhase(1), 5000),
       setTimeout(() => setGenerationPhase(2), 15000),
       setTimeout(() => setGenerationPhase(3), 25000),
     ];
-    return () => timers.forEach(clearTimeout);
-  }, [isGenerating]);
-
-  // Keyboard shortcuts (Ctrl+Enter / Ctrl+G) — routed through validation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.key === "g")) {
-        e.preventDefault();
-        if (!isGenerating && selectedProvider) {
-          handleValidateAndGenerate();
-        }
-      }
+    return () => {
+      timers.forEach(clearTimeout);
+      setGenerationPhase(0);
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    isGenerating,
-    selectedProvider,
-    ticketData.description,
-    structuredInputs,
-    ticketData.type,
-  ]);
+  }, [isGenerating]);
 
   // Clear validation on description change
   const handleDescriptionChangeWithValidation = useCallback(
@@ -206,19 +208,60 @@ export const InputView = memo(function InputView({
     onGenerate,
   ]);
 
-  // Reset structured inputs when ticket type changes
+  // Keyboard shortcuts (Ctrl+Enter / Ctrl+G) — routed through validation.
+  // Declared after handleValidateAndGenerate so the effect can depend on it
+  // directly instead of re-deriving its inputs.
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.key === "g")) {
+        e.preventDefault();
+        if (!isGenerating && selectedProvider) {
+          handleValidateAndGenerate();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isGenerating, selectedProvider, handleValidateAndGenerate]);
+
+  // Reset structured inputs when the ticket type changes. Done during render
+  // (React's documented "adjusting state when a prop changes" pattern) rather
+  // than in an effect — React re-renders before committing, so there's no
+  // extra commit and no frame showing the previous type's answers.
+  const [prevType, setPrevType] = useState(ticketData.type);
+  if (prevType !== ticketData.type) {
+    setPrevType(ticketData.type);
     setStructuredInputs({});
     setShowHelpers(false);
-  }, [ticketData.type]);
+  }
 
   const typeHints = TICKET_TYPE_HINTS[ticketData.type];
   const hasStructuredPrompts =
     typeHints?.structuredPrompts && typeHints.structuredPrompts.length > 0;
 
+  // The CTA is muted until there's something to generate from, rather than
+  // looking fully enabled and then rejecting the submission. Structured prompt
+  // answers count, so this checks the composed description.
+  const hasContent = buildFullDescription().trim().length > 0;
+  const canGenerate = hasContent && !isGenerating && !providerLoading;
+  const hasClearableInput =
+    !!ticketData.description.trim() ||
+    ticketData.labels.length > 0 ||
+    (ticketData.attachments?.length ?? 0) > 0;
+
+  const handleClearForm = useCallback(() => {
+    if (
+      window.confirm(
+        'Clear the form? Your description, labels and attachments will be removed.',
+      )
+    ) {
+      onClearDraft();
+    }
+  }, [onClearDraft]);
+
   return (
     <section
-      className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-5 space-y-4"
+      className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-6 space-y-5"
       aria-label="Create ticket"
     >
       {/* Draft restore banner */}
@@ -258,7 +301,8 @@ export const InputView = memo(function InputView({
           charCount={ticketData.description.length}
           wordCount={wordCount}
           draftSaved={draftSaved}
-          onClearDraft={onClearDraft}
+          errorMessage={validationError}
+          warningMessage={validationWarning}
           hasError={!!validationError && !ticketData.description.trim()}
           placeholder={typeHints?.placeholder}
           attachments={ticketData.attachments || []}
@@ -269,41 +313,33 @@ export const InputView = memo(function InputView({
         />
       </div>
 
-      {/* Validation error */}
-      {validationError && (
-        <div
-          className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400 hint-enter"
-          role="alert"
-        >
-          <AlertCircle
-            className="w-3.5 h-3.5 flex-shrink-0"
-            aria-hidden="true"
-          />
-          <span>{validationError}</span>
-        </div>
-      )}
+      {/* Validation messages now render inside DescriptionEditor, directly
+          beneath the textarea they describe and wired via aria-describedby. */}
 
-      {/* Validation warning (non-blocking) */}
-      {validationWarning && !validationError && (
-        <div
-          className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hint-enter"
-          role="status"
-        >
-          <AlertCircle
-            className="w-3.5 h-3.5 flex-shrink-0"
-            aria-hidden="true"
-          />
-          <span>{validationWarning}</span>
-        </div>
-      )}
+      {/* Screen-reader progress announcements. The visual phase text lives in
+          the button, which isn't a live region, so long generations were silent
+          for assistive tech. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {isGenerating ? GENERATION_PHASES[generationPhase] : ''}
+      </p>
 
-      {/* Compact Type + Priority pills */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <TicketTypeSelector value={ticketData.type} onChange={onTypeChange} />
-        <PrioritySelector
-          value={ticketData.priority}
-          onChange={onPriorityChange}
+      {/* Type and Priority share one row. A two-column grid rather than
+          flex-wrap: with wrapping, Priority dropped onto its own line as soon as
+          the chips exceeded the card width. Each column now wraps internally. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-x-4 gap-y-5 pt-1">
+        <TicketTypeSelector
+          value={ticketData.type}
+          onChange={onTypeChange}
         />
+        {/* Shrink-wrapped and pushed to the column's right edge, so the label
+            sits directly above its own chips rather than orphaned above the
+            empty left half of the column. */}
+        <div className="sm:justify-self-end">
+          <PrioritySelector
+            value={ticketData.priority}
+            onChange={onPriorityChange}
+          />
+        </div>
       </div>
 
       {/* Adaptive type hints */}
@@ -365,16 +401,25 @@ export const InputView = memo(function InputView({
         writingStyle={ticketData.writingStyle}
         onTemplateChange={onTemplateChange}
         onWritingStyleChange={onWritingStyleChange}
+        isOpen={advancedOpen}
+        onOpenChange={onAdvancedOpenChange}
+        showMoreStyles={showMoreStyles}
+        onShowMoreStylesChange={onShowMoreStylesChange}
       />
 
       {/* Generate button */}
-      <div className="pt-2 space-y-3">
+      <div className="pt-3 space-y-3">
         <div className="flex gap-2">
         <button
           onClick={handleValidateAndGenerate}
-          disabled={isGenerating || !!providerLoading}
-          className="flex-1 bg-white/20 backdrop-blur-xl border border-white/30 text-slate-700 hover:bg-white/30 hover:border-white/50 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-200 dark:hover:bg-slate-700/30 dark:hover:border-slate-600 py-3.5 px-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-semibold text-base shadow-lg transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+          disabled={!canGenerate}
+          // `relative` so the trailing metadata can be pinned to the right edge
+          // rather than sitting inline: inline, it split the label from the
+          // keycap and shifted the centred label sideways whenever a file was
+          // attached.
+          className="relative flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white border border-blue-700/50 hover:from-blue-500 hover:to-blue-600 py-3.5 px-5 rounded-xl disabled:from-slate-400 disabled:to-slate-500 disabled:border-slate-500/40 disabled:text-white/80 disabled:cursor-not-allowed disabled:shadow-none dark:disabled:from-slate-700 dark:disabled:to-slate-700 dark:disabled:text-slate-400 flex items-center justify-center gap-3 font-semibold text-base shadow-lg transition-all hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
           aria-busy={isGenerating}
+          aria-describedby={!hasContent ? "generate-hint" : undefined}
         >
           {(() => {
             const provider = PROVIDER_LOGOS[selectedProvider];
@@ -420,32 +465,58 @@ export const InputView = memo(function InputView({
               <>
                 {logoEl}
                 Generate Ticket
-                {attCount > 0 && (
-                  <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-300 font-medium">
-                    {attCount} {attCount === 1 ? 'file' : 'files'}
-                  </span>
-                )}
-                <kbd className="ml-1 px-1.5 py-0.5 text-xs rounded bg-white/20 font-mono">
-                  Ctrl+Enter
-                </kbd>
+                {/* Ancillary info lives at the right edge so the label stays
+                    optically centred and doesn't move when a file is attached.
+                    The keycap is hidden on small screens — a keyboard shortcut
+                    is meaningless on touch, and it would crowd the label. */}
+                <span className="absolute right-4 flex items-center gap-2">
+                  {attCount > 0 && (
+                    <span className="inline-flex items-center gap-1 text-sm font-normal opacity-75">
+                      <Paperclip className="w-3.5 h-3.5" aria-hidden="true" />
+                      {attCount}
+                      <span className="sr-only">
+                        {attCount === 1 ? "attachment" : "attachments"} included
+                      </span>
+                    </span>
+                  )}
+                  <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-xs rounded bg-white/20 font-mono font-normal">
+                    Ctrl+Enter
+                  </kbd>
+                </span>
               </>
             );
           })()}
         </button>
 
-        {/* Clear form button */}
-        {!isGenerating && (ticketData.description.trim() || ticketData.labels.length > 0 || (ticketData.attachments?.length ?? 0) > 0) && (
-          <button
-            onClick={onClearDraft}
-            className="py-3.5 px-4 rounded-xl border border-white/30 dark:border-slate-700/50 bg-white/10 dark:bg-slate-800/10 text-slate-500 hover:text-red-500 hover:border-red-300 dark:text-slate-400 dark:hover:text-red-400 dark:hover:border-red-500/50 transition-all shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
-            type="button"
-            aria-label="Clear form"
-            title="Clear form"
-          >
-            <RotateCcw className="w-5 h-5" aria-hidden="true" />
-          </button>
-        )}
         </div>
+
+        {/* Hint explaining why the CTA is muted */}
+        {!hasContent && !isGenerating && (
+          <p
+            id="generate-hint"
+            className="text-xs text-slate-600 dark:text-slate-400"
+          >
+            Add a description above to generate a ticket.
+          </p>
+        )}
+
+        {/* Clear form — kept off the CTA's row so its appearance can't shift the
+            primary button under the user's cursor, and always rendered (disabled
+            when there's nothing to clear) for the same reason. */}
+        {!isGenerating && (
+          <div className="flex justify-end">
+            <button
+              onClick={handleClearForm}
+              disabled={!hasClearableInput}
+              className="py-1.5 px-3 rounded-lg text-xs flex items-center gap-1.5 border border-transparent text-slate-600 hover:text-red-700 hover:border-red-500/40 hover:bg-red-500/10 dark:text-slate-400 dark:hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-transparent disabled:hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-500"
+              type="button"
+              title="Clear the description, labels and attachments"
+            >
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              Clear form
+            </button>
+          </div>
+        )}
 
         {/* Cancel button during generation */}
         {isGenerating && onCancel && (

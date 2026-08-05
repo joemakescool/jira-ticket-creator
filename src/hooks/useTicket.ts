@@ -1,14 +1,14 @@
 /**
  * useTicket Hook
- * 
- * Provides a clean interface for ticket operations in React components.
- * Handles loading states, errors, and API communication.
- * 
- * Why a hook?
- * - Encapsulates all ticket-related state and logic
- * - Reusable across components
- * - Testable in isolation
- * - Keeps components focused on UI
+ *
+ * Owns the generated ticket, its edit history, and the request lifecycle for
+ * generate / refine / regenerate.
+ *
+ * It deliberately does NOT own the form. It used to keep its own copy of the
+ * ticket input, reconciled from the component with a useEffect, and that
+ * duplication silently dropped fields — `template` never reached the API for
+ * months because it was missing from the sync. The form is now passed in at call
+ * time, so there is exactly one source of truth and no field can be forgotten.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -16,11 +16,30 @@ import {
   TicketInput,
   GeneratedTicket,
   RefinementStyle,
-  DEFAULT_TICKET_INPUT,
 } from '../types/ticket';
 
 // Use relative URL to go through Vite's proxy in development
 const API_BASE = '/api';
+
+/** How many previous ticket bodies to keep for undo. */
+const MAX_HISTORY = 10;
+
+/** Human-readable names for undo messaging, keyed by refinement style. */
+const REFINEMENT_LABELS: Record<RefinementStyle, string> = {
+  concise: 'More Concise',
+  detailed: 'More Details',
+  technical: 'More Technical',
+  business: 'Business Focus',
+  'user-story': 'User Story',
+  acceptance: 'More Criteria',
+};
+
+export interface RegenerateMetadata {
+  title?: string;
+  type?: TicketInput['type'];
+  priority?: TicketInput['priority'];
+  labels?: string[];
+}
 
 interface UseTicketOptions {
   provider?: string;
@@ -29,57 +48,81 @@ interface UseTicketOptions {
 
 interface UseTicketReturn {
   // State
-  input: TicketInput;
   generatedTicket: GeneratedTicket | null;
   editedContent: string;
   isGenerating: boolean;
   isRefining: boolean;
   error: string | null;
-  
+  /** Stable code from the server (e.g. `provider_rate_limited`), when present. */
+  errorCode: string | null;
+  canUndo: boolean;
+  lastActionLabel: string | null;
+
   // Actions
-  setInput: (input: Partial<TicketInput>) => void;
   setEditedContent: (content: string) => void;
-  generateTicket: () => Promise<GeneratedTicket | null>;
+  generateTicket: (input: TicketInput) => Promise<GeneratedTicket | null>;
   refineTicket: (style: RefinementStyle) => Promise<void>;
-  regenerateTicket: (metadata?: { title?: string; type?: string; priority?: string; labels?: string[] }) => Promise<void>;
-  generateTitle: () => Promise<void>;
+  regenerateTicket: (metadata?: RegenerateMetadata) => Promise<void>;
+  generateTitle: (description: string) => Promise<string | null>;
   copyToClipboard: () => Promise<boolean>;
   cancelGeneration: () => void;
+  undo: () => void;
   reset: () => void;
+}
+
+/** An API error carrying the server's stable `code` alongside its message. */
+class ApiRequestError extends Error {
+  constructor(message: string, readonly code: string | null) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
 }
 
 export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
   const { provider, autoCopy = false } = options;
-  
-  // Form state
-  const [input, setInputState] = useState<TicketInput>(DEFAULT_TICKET_INPUT);
-  
-  // Generation state
+
   const [generatedTicket, setGeneratedTicket] = useState<GeneratedTicket | null>(null);
   const [editedContent, setEditedContent] = useState('');
-  
-  // Loading states
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
-  
-  // Error state
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
-  // Abort controller for cancellation
+  // Undo history — refine and regenerate overwrite reviewed (and possibly
+  // hand-edited) content, so the previous body is pushed here first.
+  const [history, setHistory] = useState<{ content: string; label: string }[]>([]);
+
   const abortControllerRef = useRef<AbortController | null>(null);
   const userCancelledRef = useRef(false);
 
-  // Update input (partial update)
-  const setInput = useCallback((updates: Partial<TicketInput>) => {
-    setInputState(prev => ({ ...prev, ...updates }));
-    setError(null); // Clear errors on input change
+  const pushHistory = useCallback((content: string, label: string) => {
+    if (!content) return;
+    setHistory(prev => [...prev, { content, label }].slice(-MAX_HISTORY));
   }, []);
 
-  // Copy to clipboard
+  const undo = useCallback(() => {
+    setHistory(prev => {
+      if (prev.length === 0) return prev;
+      const previous = prev[prev.length - 1];
+      setEditedContent(previous.content);
+      setError(null);
+      setErrorCode(null);
+      return prev.slice(0, -1);
+    });
+  }, []);
+
+  const cancelGeneration = useCallback(() => {
+    userCancelledRef.current = true;
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
   const copyToClipboard = useCallback(async (): Promise<boolean> => {
     const content = editedContent || generatedTicket?.content;
     if (!content) return false;
-    
+
     try {
       await navigator.clipboard.writeText(content);
       return true;
@@ -89,232 +132,208 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     }
   }, [editedContent, generatedTicket]);
 
-  // Cancel generation
-  const cancelGeneration = useCallback(() => {
-    userCancelledRef.current = true;
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-  }, []);
-
-  // Generate ticket
-  const generateTicket = useCallback(async (): Promise<GeneratedTicket | null> => {
-    if (!input.description?.trim()) {
-      setError('Description is required');
-      return null;
-    }
-
-    // Cancel any in-flight request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    userCancelledRef.current = false;
-
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE}/tickets/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input, provider }),
-        signal: controller.signal,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Generation failed');
+  /**
+   * Shared request lifecycle: cancel any in-flight call, track the busy flag,
+   * normalise errors, and distinguish a user cancellation from a timeout.
+   *
+   * Generate, refine and regenerate were three near-identical 40-line copies of
+   * this; the only differences were the endpoint, the busy flag, and the labels.
+   */
+  const runMutation = useCallback(
+    async <T>(config: {
+      endpoint: string;
+      body: unknown;
+      busy: 'generating' | 'refining';
+      action: string;
+    }): Promise<T | null> => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
 
-      setGeneratedTicket(data.data);
-      setEditedContent(data.data.content);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      userCancelledRef.current = false;
 
-      if (autoCopy) {
-        setTimeout(() => {
-          navigator.clipboard.writeText(data.data.content).catch(() => {});
-        }, 100);
-      }
+      const setBusy = config.busy === 'generating' ? setIsGenerating : setIsRefining;
+      setBusy(true);
+      setError(null);
+      setErrorCode(null);
 
-      return data.data as GeneratedTicket;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        if (userCancelledRef.current) {
-          setError(null); // User cancelled, no error needed
+      try {
+        const response = await fetch(`${API_BASE}${config.endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config.body),
+          signal: controller.signal,
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new ApiRequestError(
+            data.error || `${config.action} failed`,
+            data.code ?? null,
+          );
+        }
+
+        return data.data as T;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          // A user-initiated cancel isn't an error worth surfacing.
+          if (!userCancelledRef.current) {
+            setError(
+              `${config.action} timed out. Try again, or switch to a different provider.`,
+            );
+            setErrorCode('client_timeout');
+          }
         } else {
-          setError('Generation timed out. Try a different provider or simplify your description.');
+          setError(err instanceof Error ? err.message : `${config.action} failed`);
+          setErrorCode(err instanceof ApiRequestError ? err.code : null);
         }
-      } else {
-        setError(err instanceof Error ? err.message : 'Generation failed');
+        return null;
+      } finally {
+        setBusy(false);
+        abortControllerRef.current = null;
       }
-      return null;
-    } finally {
-      setIsGenerating(false);
-      abortControllerRef.current = null;
-    }
-  }, [input, provider, autoCopy]);
+    },
+    [],
+  );
 
-  // Refine ticket
-  const refineTicket = useCallback(async (style: RefinementStyle) => {
-    const content = editedContent || generatedTicket?.content;
-    if (!content) {
-      setError('No ticket to refine');
-      return;
-    }
+  /** Copy silently in the background when autoCopy is enabled. */
+  const maybeAutoCopy = useCallback(
+    (content: string) => {
+      if (!autoCopy) return;
+      navigator.clipboard.writeText(content).catch(() => {});
+    },
+    [autoCopy],
+  );
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    userCancelledRef.current = false;
+  const generateTicket = useCallback(
+    async (input: TicketInput): Promise<GeneratedTicket | null> => {
+      if (!input.description?.trim()) {
+        setError('Description is required');
+        return null;
+      }
 
-    setIsRefining(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE}/tickets/refine`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentTicket: content, style, provider }),
-        signal: controller.signal,
+      const ticket = await runMutation<GeneratedTicket>({
+        endpoint: '/tickets/generate',
+        body: { input, provider },
+        busy: 'generating',
+        action: 'Generation',
       });
 
-      const data = await response.json();
+      if (!ticket) return null;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Refinement failed');
+      setGeneratedTicket(ticket);
+      setEditedContent(ticket.content);
+      // A fresh generation starts a new history — undoing into a previous
+      // ticket's body would be nonsense.
+      setHistory([]);
+      maybeAutoCopy(ticket.content);
+
+      return ticket;
+    },
+    [provider, runMutation, maybeAutoCopy],
+  );
+
+  const refineTicket = useCallback(
+    async (style: RefinementStyle) => {
+      const content = editedContent || generatedTicket?.content;
+      if (!content) {
+        setError('No ticket to refine');
+        return;
       }
 
-      setEditedContent(data.data.content);
+      const result = await runMutation<{ content: string }>({
+        endpoint: '/tickets/refine',
+        body: { currentTicket: content, style, provider },
+        busy: 'refining',
+        action: 'Refinement',
+      });
 
-      if (autoCopy) {
-        setTimeout(() => {
-          navigator.clipboard.writeText(data.data.content).catch(() => {});
-        }, 100);
+      if (!result) return;
+
+      pushHistory(content, REFINEMENT_LABELS[style] ?? 'Refine');
+      setEditedContent(result.content);
+      maybeAutoCopy(result.content);
+    },
+    [editedContent, generatedTicket, provider, runMutation, pushHistory, maybeAutoCopy],
+  );
+
+  const regenerateTicket = useCallback(
+    async (metadata?: RegenerateMetadata) => {
+      if (!editedContent?.trim()) {
+        setError('No ticket to regenerate');
+        return;
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        if (!userCancelledRef.current) {
-          setError('Refinement timed out. Try again or switch providers.');
-        }
-      } else {
-        setError(err instanceof Error ? err.message : 'Refinement failed');
-      }
-    } finally {
-      setIsRefining(false);
-      abortControllerRef.current = null;
-    }
-  }, [editedContent, generatedTicket, provider, autoCopy]);
 
-  // Regenerate after edits — includes metadata so LLM can tailor to type/priority
-  const regenerateTicket = useCallback(async (metadata?: {
-    title?: string; type?: string; priority?: string; labels?: string[];
-  }) => {
-    if (!editedContent?.trim()) {
-      setError('No ticket to regenerate');
-      return;
-    }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    userCancelledRef.current = false;
-
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE}/tickets/regenerate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await runMutation<{ content: string }>({
+        endpoint: '/tickets/regenerate',
+        body: {
           currentTicket: editedContent,
           title: metadata?.title,
           type: metadata?.type,
           priority: metadata?.priority,
           labels: metadata?.labels,
           provider,
-        }),
-        signal: controller.signal,
+        },
+        busy: 'generating',
+        action: 'Regeneration',
       });
 
-      const data = await response.json();
+      if (!result) return;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Regeneration failed');
+      pushHistory(editedContent, 'Regenerate');
+      setEditedContent(result.content);
+      maybeAutoCopy(result.content);
+    },
+    [editedContent, provider, runMutation, pushHistory, maybeAutoCopy],
+  );
+
+  /**
+   * Title-only generation. Returns the title rather than mutating form state,
+   * since the hook no longer owns the form. Failures are silent — this is an
+   * optional convenience, not part of the main flow.
+   */
+  const generateTitle = useCallback(
+    async (description: string): Promise<string | null> => {
+      if (!description?.trim() || description.length < 20) return null;
+
+      try {
+        const response = await fetch(`${API_BASE}/tickets/title`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description, provider }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        return response.ok && data.data?.title ? (data.data.title as string) : null;
+      } catch (err) {
+        console.error('Title generation failed:', err);
+        return null;
       }
+    },
+    [provider],
+  );
 
-      setEditedContent(data.data.content);
-
-      if (autoCopy) {
-        setTimeout(() => {
-          navigator.clipboard.writeText(data.data.content).catch(() => {});
-        }, 100);
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        if (!userCancelledRef.current) {
-          setError('Regeneration timed out. Try again or switch providers.');
-        }
-      } else {
-        setError(err instanceof Error ? err.message : 'Regeneration failed');
-      }
-    } finally {
-      setIsGenerating(false);
-      abortControllerRef.current = null;
-    }
-  }, [editedContent, provider, autoCopy]);
-
-  // Generate title from description
-  const generateTitle = useCallback(async () => {
-    if (!input.description?.trim() || input.description.length < 20) {
-      return; // Need enough content to generate a meaningful title
-    }
-    
-    try {
-      const response = await fetch(`${API_BASE}/tickets/title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: input.description, provider }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.data?.title) {
-        setInputState(prev => ({ ...prev, title: data.data.title }));
-      }
-    } catch (err) {
-      // Silently fail - title generation is optional
-      console.error('Title generation failed:', err);
-    }
-  }, [input.description, provider]);
-
-  // Reset everything
   const reset = useCallback(() => {
-    setInputState(DEFAULT_TICKET_INPUT);
     setGeneratedTicket(null);
     setEditedContent('');
     setError(null);
+    setErrorCode(null);
+    setHistory([]);
   }, []);
 
   return {
-    // State
-    input,
     generatedTicket,
     editedContent,
     isGenerating,
     isRefining,
     error,
-    
-    // Actions
-    setInput,
+    errorCode,
+    canUndo: history.length > 0,
+    lastActionLabel: history.length > 0 ? history[history.length - 1].label : null,
+
     setEditedContent,
     generateTicket,
     refineTicket,
@@ -322,6 +341,7 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     generateTitle,
     copyToClipboard,
     cancelGeneration,
+    undo,
     reset,
   };
 }
