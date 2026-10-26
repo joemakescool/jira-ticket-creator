@@ -8,5 +8,5 @@
     "noEmit": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["tests/**/*", "server/**/*", "src/types/**/*"]
+  "include": ["tests/**/*", "evals/**/*", "server/**/*", "src/types/**/*"]
 }
