@@ -14,15 +14,9 @@ allowed-tools: Bash(git diff:*) Bash(git status:*) Bash(git log:*) Bash(git bran
 
 !`git diff --cached --stat`
 
-## Staged diff (generated files excluded)
+## Staged diff (lockfiles and minified output excluded)
 
-```!
-git diff --cached -- \
-  ':(exclude)**/package-lock.json' \
-  ':(exclude)**/yarn.lock' \
-  ':(exclude)**/*.lock' \
-  ':(exclude)**/*.min.*' | head -c 40000
-```
+!`git diff --cached -- ':(exclude)*.lock' ':(exclude)*lock.json' ':(exclude)*.min.*'`
 
 ## Files with unstaged edits (context only — never describe these)
 
@@ -44,7 +38,7 @@ Refs: TICKET-123
 ```
 
 - Blank line after the subject, always. Without it git treats the whole thing as one subject.
-- Bullets: `*`, capitalized, no trailing period.
+- Bullets: `-`, capitalized, no trailing period.
 - Omit the bullet block entirely for a single-purpose commit. Bullets that restate the subject are noise.
 - Omit `Refs:` when no ticket ID appears in the branch name or `$ARGUMENTS`.
 
@@ -66,15 +60,10 @@ Bullets:
 Also:
 
 - Flag any file appearing in both the staged diff and the unstaged list, above the message.
-- If the diff looks truncated, say so and work from the stat and filenames rather than guessing.
+- If the staged summary is large relative to the diff shown, say so and work from the stat and filenames rather than guessing.
 
-Print the message in a fenced block and stop. On my approval:
-
-```bash
-git commit -F - <<'MSG'
-<approved message, verbatim>
-MSG
-```
+Print the message in a fenced block and stop. On my approval, write it to a temp file
+and run `git commit -F <path>`. Never inline the message with `-m` — backticks and
+quotes in the body get mangled by the shell.
 
 `$ARGUMENTS`, if present, is a scope or summary hint. `--amend` amends the previous commit.
-SKILLEOF
