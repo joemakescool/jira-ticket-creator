@@ -120,10 +120,13 @@ export const ProviderSelector = memo(function ProviderSelector({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={toggle}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 bg-white/20 border-white/30 text-slate-700 hover:bg-white/30 hover:border-white/50 dark:bg-slate-800/30 dark:border-slate-700/50 dark:text-slate-200 dark:hover:bg-slate-700/30 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all duration-200 bg-white/20 border-white/30 text-slate-700 hover:bg-white/30 hover:border-white/50 dark:bg-slate-800/30 dark:border-slate-700/50 dark:text-slate-200 dark:hover:bg-slate-700/30 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
         aria-expanded={isOpen && !isClosing}
         aria-haspopup="listbox"
-        aria-label="Select AI Provider"
+        // Includes the current choice — the visible name is hidden on narrow
+        // screens, and a bare "Select AI Provider" never said what was selected.
+        aria-label={`AI provider: ${PROVIDER_LABELS[value] || value || 'none'}. Change provider`}
+        title={PROVIDER_LABELS[value] || value || undefined}
         type="button"
       >
         <div className="relative">
@@ -132,7 +135,7 @@ export const ProviderSelector = memo(function ProviderSelector({
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
           )}
         </div>
-        <span>{PROVIDER_LABELS[value] || value || 'Select...'}</span>
+        <span className="hidden sm:inline">{PROVIDER_LABELS[value] || value || 'Select...'}</span>
         <ChevronDown
           className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen && !isClosing ? 'rotate-180' : ''}`}
           aria-hidden="true"

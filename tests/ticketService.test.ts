@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { TicketService } from '../server/services/ticket/TicketService';
 import type { LLMProvider, LLMCompletionResult } from '../server/services/llm/LLMProvider';
-import type { TicketInput } from '../src/types/ticket';
+import type { TicketInput, CommentInput } from '../src/types/ticket';
+import { COMMENT_SYSTEM_PROMPT } from '../server/prompts/ticketPrompts';
 
 /** Create a mock provider that returns a fixed response */
 function mockProvider(content: string): LLMProvider {
@@ -273,5 +274,61 @@ describe('TicketService.generateTicket — fully specified input', () => {
     expect(ticket.title).toBe('Handle error payload');
     expect(ticket.content).toContain('### Acceptance Criteria');
     expect(ticket.content).toContain('{"status": "error"}');
+  });
+});
+
+describe('TicketService.generateComment', () => {
+  const service = new TicketService();
+  const input: CommentInput = {
+    notes: 'fixed token expiry, PR #412 up, need QA on staging',
+    type: 'status-update',
+  };
+
+  it('sends the comment system prompt and notes, with a small low-effort budget', async () => {
+    const provider = mockProvider('**Done:** Fixed token expiry.');
+
+    await service.generateComment(input, provider);
+
+    const [messages, options] = vi.mocked(provider.complete).mock.calls[0];
+    expect(messages[0]).toEqual({ role: 'system', content: COMMENT_SYSTEM_PROMPT });
+    expect(messages[1].content).toContain(input.notes);
+    expect(options).toMatchObject({ maxTokens: 1000, effort: 'low' });
+    // Comments are free-form markdown — no schema to constrain them.
+    expect(options?.jsonSchema).toBeUndefined();
+  });
+
+  it('returns the content with model attribution and a timestamp', async () => {
+    const provider = mockProvider('**Done:** Fixed token expiry.');
+
+    const comment = await service.generateComment(input, provider);
+
+    expect(comment.content).toBe('**Done:** Fixed token expiry.');
+    expect(comment.model).toBe('mock-model');
+    expect(Number.isNaN(Date.parse(comment.generatedAt))).toBe(false);
+  });
+
+  it('strips wrapping code fences', async () => {
+    const provider = mockProvider('```markdown\n**Done:** Fixed token expiry.\n```');
+
+    const comment = await service.generateComment(input, provider);
+
+    expect(comment.content).toBe('**Done:** Fixed token expiry.');
+  });
+
+  it('keeps a leading ## line — unlike tickets, a comment has no separate title', async () => {
+    const provider = mockProvider('## Fixed token expiry\nPR is up.');
+
+    const comment = await service.generateComment(input, provider);
+
+    expect(comment.content).toContain('Fixed token expiry');
+  });
+
+  it('throws a client-safe ApiError when the model returns nothing', async () => {
+    const provider = mockProvider('   \n ');
+
+    await expect(service.generateComment(input, provider)).rejects.toMatchObject({
+      statusCode: 502,
+      code: 'provider_empty_response',
+    });
   });
 });

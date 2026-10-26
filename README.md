@@ -7,6 +7,7 @@ It runs entirely on your machine: a React frontend served by an Express backend 
 ## Features
 
 - **Two-step workflow** — Describe your task, then review and refine the generated ticket
+- **Comment mode** — Turn rough notes into a status update or clarifying question for an existing ticket, optionally using the pasted ticket text as context
 - **Multiple LLM providers** — Claude, OpenAI, or Ollama (local). Switch between them at runtime
 - **Refinement styles** — Make generated content more concise, detailed, technical, etc.
 - **Draft persistence** — Work-in-progress is saved to localStorage automatically
@@ -142,7 +143,7 @@ jira-ticket-creator/
 │   ├── index.ts                  # Server setup, middleware, static serving
 │   ├── routes/
 │   │   ├── index.ts              # Route aggregator
-│   │   └── tickets.ts            # POST /api/tickets/generate, /refine
+│   │   └── tickets.ts            # POST /api/tickets/generate, /refine, /comment
 │   ├── helpers/
 │   │   └── provider.ts           # Resolves provider name → instance
 │   ├── middleware/
@@ -191,6 +192,20 @@ The frontend never sees API keys. All LLM calls are proxied through the Express 
 | `npm run build` | Build both client and server for production |
 | `npm start` | Run the production server |
 | `npm run typecheck` | Run TypeScript type checking |
+| `npm run verify` | Typecheck, lint and run the unit tests |
+| `npm run eval:prompts` | Check comment output quality against the live model (paid API calls) |
+
+### Prompt quality check
+
+`npm run eval:prompts` sends a fixed set of notes (`evals/commentCases.ts`) through the real comment pipeline and checks each result with simple rules: required facts kept, known fabrications and injected text absent, no ticket-style formatting, within length. Run it after changing a comment prompt or the model.
+
+```bash
+npm run eval:prompts                              # default provider, 2 runs per case
+npm run eval:prompts -- --provider openai --runs 3
+npm run eval:prompts -- --case question           # only matching case ids
+```
+
+It exits non-zero on any failure. The checks only catch fabrications listed in advance, so add a case whenever you spot a new failure. Their unit tests in `tests/commentEvalChecks.test.ts` prove each one can actually fail.
 
 ## License
 

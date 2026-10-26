@@ -15,10 +15,12 @@ import {
   refineTicketSchema,
   regenerateTicketSchema,
   generateTitleSchema,
+  generateCommentSchema,
   GenerateTicketInput,
   RefineTicketInput,
   RegenerateTicketInput,
   GenerateTitleInput,
+  GenerateCommentInput,
 } from '../validation/schemas.js';
 
 const router = Router();
@@ -111,6 +113,39 @@ router.post(
       });
     } catch (error) {
       logger.error({ error, duration: Date.now() - startTime }, 'Ticket regeneration failed');
+      next(error);
+    }
+  }
+);
+
+/**
+ * Generate a comment on an existing ticket
+ */
+router.post(
+  '/comment',
+  validate(generateCommentSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    try {
+      const { input, provider: providerName } = req.body as GenerateCommentInput;
+
+      logger.info(
+        { provider: providerName, type: input.type, hasContext: !!input.ticketContext },
+        'Generating comment',
+      );
+
+      const provider = getProvider(providerName);
+      const comment = await ticketService.generateComment(input, provider);
+
+      const duration = Date.now() - startTime;
+      logger.info({ provider: providerName, duration }, 'Comment generated successfully');
+
+      res.json({
+        success: true,
+        data: comment,
+      });
+    } catch (error) {
+      logger.error({ error, duration: Date.now() - startTime }, 'Comment generation failed');
       next(error);
     }
   }

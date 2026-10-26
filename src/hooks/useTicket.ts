@@ -17,9 +17,7 @@ import {
   GeneratedTicket,
   RefinementStyle,
 } from '../types/ticket';
-
-// Use relative URL to go through Vite's proxy in development
-const API_BASE = '/api';
+import { API_BASE, ApiRequestError, postApi } from '../utils/api';
 
 /** How many previous ticket bodies to keep for undo. */
 const MAX_HISTORY = 10;
@@ -68,14 +66,6 @@ interface UseTicketReturn {
   cancelGeneration: () => void;
   undo: () => void;
   reset: () => void;
-}
-
-/** An API error carrying the server's stable `code` alongside its message. */
-class ApiRequestError extends Error {
-  constructor(message: string, readonly code: string | null) {
-    super(message);
-    this.name = 'ApiRequestError';
-  }
 }
 
 export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
@@ -160,23 +150,10 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
       setErrorCode(null);
 
       try {
-        const response = await fetch(`${API_BASE}${config.endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config.body),
+        return await postApi<T>(config.endpoint, config.body, {
           signal: controller.signal,
+          fallbackError: `${config.action} failed`,
         });
-
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new ApiRequestError(
-            data.error || `${config.action} failed`,
-            data.code ?? null,
-          );
-        }
-
-        return data.data as T;
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           // A user-initiated cancel isn't an error worth surfacing.

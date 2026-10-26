@@ -3,9 +3,9 @@
  * Centralized configuration for reusability
  */
 
-import { CheckSquare, FileText, Bug, Zap, Upload, TrendingUp, AlertCircle, AlertTriangle, Flame, Layout, LayoutGrid, AlignLeft, AlignJustify, Code2, Briefcase, User, ListChecks } from 'lucide-react';
+import { CheckSquare, FileText, Bug, Zap, Upload, TrendingUp, AlertCircle, AlertTriangle, Flame, Layout, LayoutGrid, AlignLeft, AlignJustify, Code2, Briefcase, User, ListChecks, Activity, HelpCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { RefinementStyle } from '../../types/ticket';
+import type { RefinementStyle, CommentType } from '../../types/ticket';
 
 export const COMMON_LABELS = [
   'frontend', 'backend', 'api', 'database', 'security', 'performance',
@@ -182,6 +182,33 @@ export const TICKET_TYPE_HINTS: Record<string, TicketTypeHint> = {
     hint: 'What question or uncertainty are you investigating? What\'s the timebox?',
   },
 };
+
+export interface CommentTypeConfig {
+  value: CommentType;
+  label: string;
+  icon: LucideIcon;
+  description: string;
+  placeholder: string;
+}
+
+export const COMMENT_TYPE_OPTIONS: CommentTypeConfig[] = [
+  {
+    value: 'status-update',
+    label: 'Status update',
+    icon: Activity,
+    description: "What's done, what's next, any risks",
+    placeholder:
+      'e.g. fixed token expiry bug, PR #412 up for review. still need QA on staging. might slip to thurs if review is slow',
+  },
+  {
+    value: 'question',
+    label: 'Question',
+    icon: HelpCircle,
+    description: 'Ask for missing details or a decision',
+    placeholder:
+      'e.g. does the 24h expiry apply to SSO users too? and should old links show an error page or redirect to login?',
+  },
+];
 
 export const DRAFT_SAVE_DELAY = 2000;
 export const TITLE_GENERATION_DELAY = 1000;

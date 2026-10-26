@@ -16,10 +16,11 @@
     "typecheck:client": "tsc --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
-    "lint": "eslint src server --max-warnings 0",
+    "lint": "eslint src server evals --max-warnings 0",
     "verify": "npm run typecheck && npm run lint && npm test",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:prompts": "tsx --tsconfig tsconfig.server.json evals/commentPrompts.eval.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

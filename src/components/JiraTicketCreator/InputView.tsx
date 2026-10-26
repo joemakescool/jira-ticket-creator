@@ -488,6 +488,30 @@ export const InputView = memo(function InputView({
           })()}
         </button>
 
+        {/* Secondary action shares the CTA's row, matching comment mode. It's
+            always rendered (Clear disabled when empty, swapped for Cancel while
+            busy) so the primary button never resizes under the cursor. */}
+        {isGenerating && onCancel ? (
+          <button
+            onClick={onCancel}
+            className="py-3.5 px-4 rounded-xl text-sm flex items-center gap-1.5 border border-white/50 bg-white/30 text-slate-700 hover:bg-white/50 dark:border-slate-600 dark:bg-slate-800/40 dark:text-slate-200 dark:hover:bg-slate-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="button"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+            Cancel
+          </button>
+        ) : (
+          <button
+            onClick={handleClearForm}
+            disabled={!hasClearableInput || isGenerating}
+            className="py-3.5 px-4 rounded-xl text-sm flex items-center gap-1.5 border border-transparent text-slate-600 hover:text-red-700 hover:border-red-500/40 hover:bg-red-500/10 dark:text-slate-400 dark:hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-transparent disabled:hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-500"
+            type="button"
+            title="Clear the description, labels and attachments"
+          >
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+            Clear
+          </button>
+        )}
         </div>
 
         {/* Hint explaining why the CTA is muted */}
@@ -498,36 +522,6 @@ export const InputView = memo(function InputView({
           >
             Add a description above to generate a ticket.
           </p>
-        )}
-
-        {/* Clear form — kept off the CTA's row so its appearance can't shift the
-            primary button under the user's cursor, and always rendered (disabled
-            when there's nothing to clear) for the same reason. */}
-        {!isGenerating && (
-          <div className="flex justify-end">
-            <button
-              onClick={handleClearForm}
-              disabled={!hasClearableInput}
-              className="py-1.5 px-3 rounded-lg text-xs flex items-center gap-1.5 border border-transparent text-slate-600 hover:text-red-700 hover:border-red-500/40 hover:bg-red-500/10 dark:text-slate-400 dark:hover:text-red-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-transparent disabled:hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-500"
-              type="button"
-              title="Clear the description, labels and attachments"
-            >
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              Clear form
-            </button>
-          </div>
-        )}
-
-        {/* Cancel button during generation */}
-        {isGenerating && onCancel && (
-          <button
-            onClick={onCancel}
-            className="w-full py-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5"
-            type="button"
-          >
-            <X className="w-3.5 h-3.5" aria-hidden="true" />
-            Cancel
-          </button>
         )}
 
         {/* Error display */}
