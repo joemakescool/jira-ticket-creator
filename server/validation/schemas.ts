@@ -8,9 +8,13 @@
 import { z } from 'zod';
 import { LLM_PROVIDERS } from '../services/llm/LLMProvider.js';
 
+import { COMMENT_TYPES } from '../../src/types/ticket.js';
 import {
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_SIZE,
+  MAX_COMMENT_CONTEXT_LENGTH,
+  MAX_COMMENT_NOTES_LENGTH,
+  MIN_COMMENT_NOTES_LENGTH,
   MAX_DESCRIPTION_LENGTH,
   MAX_LABELS,
   MAX_LABEL_LENGTH,
@@ -129,6 +133,32 @@ export const regenerateTicketSchema = z.object({
   provider: providerSchema.optional(),
 });
 
+// Valid comment types (derived from the shared COMMENT_TYPES tuple)
+export const commentTypeSchema = z.enum(COMMENT_TYPES);
+
+// Comment input schema
+export const commentInputSchema = z.object({
+  notes: z
+    .string()
+    .trim()
+    .min(MIN_COMMENT_NOTES_LENGTH, `Notes must be at least ${MIN_COMMENT_NOTES_LENGTH} characters`)
+    .max(MAX_COMMENT_NOTES_LENGTH, `Notes cannot exceed ${MAX_COMMENT_NOTES_LENGTH} characters`),
+  type: commentTypeSchema,
+  // Blank context is normalised to undefined so the prompt doesn't render an
+  // empty "Ticket context" section.
+  ticketContext: z
+    .string()
+    .max(MAX_COMMENT_CONTEXT_LENGTH, `Ticket context cannot exceed ${MAX_COMMENT_CONTEXT_LENGTH} characters`)
+    .optional()
+    .transform(s => s?.trim() || undefined),
+});
+
+// Generate comment request
+export const generateCommentSchema = z.object({
+  input: commentInputSchema,
+  provider: providerSchema.optional(),
+});
+
 // Generate title request
 export const generateTitleSchema = z.object({
   description: z
@@ -143,3 +173,4 @@ export type GenerateTicketInput = z.infer<typeof generateTicketSchema>;
 export type RefineTicketInput = z.infer<typeof refineTicketSchema>;
 export type RegenerateTicketInput = z.infer<typeof regenerateTicketSchema>;
 export type GenerateTitleInput = z.infer<typeof generateTitleSchema>;
+export type GenerateCommentInput = z.infer<typeof generateCommentSchema>;

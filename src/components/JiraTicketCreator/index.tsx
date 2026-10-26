@@ -1,16 +1,25 @@
 /**
  * JiraTicketCreator Component
  * Main component for creating JIRA tickets with AI assistance
- * Two-step flow: Describe → Review & Edit
+ * Ticket mode — two-step flow: Describe → Review & Edit
+ * Comment mode — single screen: notes → comment on an existing ticket
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Sun, Moon, CheckCircle, Plus, AlertCircle, RefreshCw } from 'lucide-react';
+import { Sun, Moon, AlertCircle, RefreshCw } from 'lucide-react';
 import { JiraLogo } from './ProviderIcons';
 import { useTicket } from '../../hooks/useTicket';
+import { useComment } from '../../hooks/useComment';
 import { useTheme } from '../../contexts/themeContextValue';
-import type { RefinementStyle, Attachment, TicketInput } from '../../types/ticket';
-import type { TicketFormData, AppStep } from './types';
+import type {
+  RefinementStyle,
+  Attachment,
+  TicketInput,
+  CommentInput,
+  CommentType,
+} from '../../types/ticket';
+import { DEFAULT_COMMENT_INPUT } from '../../types/ticket';
+import type { TicketFormData, AppStep, AppMode } from './types';
 import { DEFAULT_TICKET_DATA } from './types';
 import {
   buildTicketMarkdown,
@@ -22,11 +31,13 @@ import type { CopyTarget } from './ReviewView';
 // Sub-components
 import { InputView } from './InputView';
 import { ReviewView } from './ReviewView';
+import { CommentView } from './CommentView';
+import { ModeToggle, MODE_PANEL_ID } from './ModeToggle';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { ImagePreviewModal } from './ImagePreviewModal';
 import { ProviderSelector } from './ProviderSelector';
 import { StepIndicator } from './StepIndicator';
-import { Toast } from '../ui/Toast';
+import { Toast, type ToastType } from '../ui/Toast';
 import { useDraft } from './hooks/useDraft';
 
 export function JiraTicketCreator() {
@@ -54,12 +65,37 @@ export function JiraTicketCreator() {
     lastActionLabel,
   } = useTicket({ provider: selectedProvider, autoCopy: false });
 
+  // Comment mode. Its state lives here alongside the ticket's, so switching
+  // modes never discards work in the other one.
+  const [mode, setMode] = useState<AppMode>('ticket');
+  const [commentData, setCommentData] = useState<CommentInput>(DEFAULT_COMMENT_INPUT);
+  const [commentContextOpen, setCommentContextOpen] = useState(false);
+  const [commentCopied, setCommentCopied] = useState(false);
+  const {
+    generatedComment,
+    editedContent: editedComment,
+    isGenerating: isGeneratingComment,
+    error: commentError,
+    setEditedContent: setEditedComment,
+    generateComment: hookGenerateComment,
+    cancelGeneration: cancelCommentGeneration,
+    reset: resetComment,
+  } = useComment({ provider: selectedProvider });
+
   // Form state
   const [ticketData, setTicketData] = useState<TicketFormData>(DEFAULT_TICKET_DATA);
   // Which copy button last succeeded, so the confirmation renders on the button
   // that was actually pressed rather than on its neighbour.
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // The full ticket as last copied — lets "New ticket" skip its confirmation
+  // when nothing would be lost.
+  const lastCopiedMarkdown = useRef<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const showToast = useCallback((message: string, type: ToastType = 'success') => {
+    setToast({ message, type });
+  }, []);
+  // Stable so the Toast's auto-dismiss timer isn't restarted on every render.
+  const dismissToast = useCallback(() => setToast(null), []);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [currentStep, setCurrentStep] = useState<AppStep>('describe');
@@ -175,7 +211,9 @@ export function JiraTicketCreator() {
         switch (e.key) {
           case 's':
             e.preventDefault();
-            saveDraftNow(ticketData);
+            // Drafts are ticket-only; in comment mode this just suppresses the
+            // browser's "save page" dialog.
+            if (mode === 'ticket') saveDraftNow(ticketData);
             break;
           case 'k':
             e.preventDefault();
@@ -186,7 +224,7 @@ export function JiraTicketCreator() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [ticketData, saveDraftNow]);
+  }, [ticketData, saveDraftNow, mode]);
 
   // --- Handlers ---
 
@@ -293,11 +331,15 @@ export function JiraTicketCreator() {
     attachments: ticketData.attachments,
   }), [ticketData, editedContent, generatedTicket]);
 
-  const confirmCopy = useCallback((target: Exclude<CopyTarget, null>, message: string) => {
+  // The button's own "Copied!" state is the confirmation — no toast on top.
+  const confirmCopy = useCallback((target: Exclude<CopyTarget, null>) => {
     setCopiedTarget(target);
-    setToastMessage(message);
     setTimeout(() => setCopiedTarget(null), 2000);
   }, []);
+
+  const reportCopyFailure = useCallback(() => {
+    showToast('Copy failed — your browser blocked clipboard access', 'error');
+  }, [showToast]);
 
   /** Copy the ticket body only (plain text, with rich HTML when images exist). */
   const handleCopyToClipboard = useCallback(async () => {
@@ -318,21 +360,22 @@ export function JiraTicketCreator() {
       } else {
         await navigator.clipboard.writeText(data.content);
       }
-      confirmCopy('plain', 'Ticket copied to clipboard');
+      confirmCopy('plain');
     } catch (err) {
       console.error('Copy failed:', err);
       try {
         await navigator.clipboard.writeText(data.content);
-        confirmCopy('plain', 'Ticket copied to clipboard');
+        confirmCopy('plain');
       } catch {
-        setToastMessage('Copy failed — your browser blocked clipboard access');
+        reportCopyFailure();
       }
     }
-  }, [exportData, confirmCopy]);
+  }, [exportData, confirmCopy, reportCopyFailure]);
 
   /**
-   * Terminal action: copy the full markdown document — title, metadata header
-   * and body — then complete the flow.
+   * Copy the full markdown document — title, metadata header and body. Stays on
+   * Review: it used to jump to a separate "done" screen, which meant navigating
+   * back to fix a typo or copy again.
    */
   const handleCopyAsMarkdown = useCallback(async () => {
     const data = exportData();
@@ -351,13 +394,13 @@ export function JiraTicketCreator() {
       } else {
         await navigator.clipboard.writeText(markdown);
       }
-      confirmCopy('markdown', 'Ticket copied — ready to paste into JIRA');
-      setCurrentStep('done');
+      confirmCopy('markdown');
+      lastCopiedMarkdown.current = markdown;
     } catch (err) {
       console.error('Copy failed:', err);
-      setToastMessage('Copy failed — your browser blocked clipboard access');
+      reportCopyFailure();
     }
-  }, [exportData, confirmCopy]);
+  }, [exportData, confirmCopy, reportCopyFailure]);
 
   const handleClearDraft = useCallback(() => {
     clearDraft();
@@ -382,7 +425,7 @@ export function JiraTicketCreator() {
   // output was unreachable from Describe and users had to pay for a second
   // generation to get back to it.
   const handleStepClick = useCallback((step: AppStep) => {
-    const stepIndex: Record<AppStep, number> = { describe: 0, review: 1, done: 2 };
+    const stepIndex: Record<AppStep, number> = { describe: 0, review: 1 };
     const target = stepIndex[step];
     const current = stepIndex[currentStep];
 
@@ -395,14 +438,64 @@ export function JiraTicketCreator() {
     }
   }, [currentStep, generatedTicket]);
 
+  // "New ticket" now sits on Review rather than after a copy, so it confirms
+  // unless the ticket as it stands right now is what was last copied.
   const handleNewTicket = useCallback(() => {
+    const isCopied = lastCopiedMarkdown.current === buildTicketMarkdown(exportData());
+    if (
+      !isCopied &&
+      !window.confirm('Start a new ticket? This one hasn’t been copied and will be cleared.')
+    ) {
+      return;
+    }
+    lastCopiedMarkdown.current = null;
     hookReset();
     setTicketData(DEFAULT_TICKET_DATA);
     setCurrentStep('describe');
-  }, [hookReset]);
+  }, [hookReset, exportData]);
+
+  // --- Comment mode handlers ---
+
+  const handleCommentNotesChange = useCallback((notes: string) => {
+    setCommentData(prev => ({ ...prev, notes }));
+  }, []);
+
+  const handleCommentTypeChange = useCallback((type: CommentType) => {
+    setCommentData(prev => ({ ...prev, type }));
+  }, []);
+
+  const handleCommentContextChange = useCallback((ticketContext: string) => {
+    setCommentData(prev => ({ ...prev, ticketContext }));
+  }, []);
+
+  const handleGenerateComment = useCallback(() => {
+    hookGenerateComment(commentData);
+  }, [hookGenerateComment, commentData]);
+
+  /** Copies the markdown as plain text, as the ticket flow's copy does. */
+  const handleCopyComment = useCallback(async () => {
+    const content = editedComment || generatedComment?.content;
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCommentCopied(true);
+      setTimeout(() => setCommentCopied(false), 2000);
+    } catch (err) {
+      console.error('Copy failed:', err);
+      reportCopyFailure();
+    }
+  }, [editedComment, generatedComment, reportCopyFailure]);
+
+  const handleClearComment = useCallback(() => {
+    resetComment();
+    setCommentData(DEFAULT_COMMENT_INPUT);
+  }, [resetComment]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 dark:from-slate-900 dark:via-blue-900 dark:to-slate-900 relative overflow-hidden">
+    // overflow-x-clip, not overflow-hidden: `hidden` makes this a scroll
+    // container, which silently breaks the Review screen's sticky action bar.
+    // `clip` still stops the oversized background blobs causing sideways scroll.
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 dark:from-slate-900 dark:via-blue-900 dark:to-slate-900 relative overflow-x-clip">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-blue-600 to-blue-700 opacity-10 rounded-full blur-3xl transform rotate-12" />
@@ -411,35 +504,40 @@ export function JiraTicketCreator() {
 
       <div className="relative z-10 max-w-4xl mx-auto p-4 space-y-4">
         {/* Header */}
+        {/* App-wide settings only. Mode lives on the content card it changes. */}
         <header className="relative z-20">
-          <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl p-4 shadow-lg border">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <JiraLogo className="w-7 h-7" />
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white">JIRA Ticket Creator</h1>
+          <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-xl px-4 py-3 shadow-lg border">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <JiraLogo className="w-7 h-7 flex-shrink-0" />
+                <h1 className="text-lg font-bold text-slate-800 dark:text-white truncate">
+                  JIRA Ticket Creator
+                </h1>
               </div>
 
-              <div className="flex-1" />
+              <div className="flex items-center gap-2">
+                <ProviderSelector
+                  value={selectedProvider}
+                  onChange={setSelectedProvider}
+                  availableProviders={availableProviders}
+                  isLoading={providerLoading}
+                />
 
-              <ProviderSelector
-                value={selectedProvider}
-                onChange={setSelectedProvider}
-                availableProviders={availableProviders}
-                isLoading={providerLoading}
-              />
-
-              <button
-                onClick={toggleTheme}
-                className={`p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30 flex items-center gap-1.5 ${showThemePulse ? 'animate-theme-pulse' : ''}`}
-                aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                type="button"
-              >
-                {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                <span className="text-xs font-medium hidden sm:inline">
-                  {isDarkMode ? 'Light' : 'Dark'}
-                </span>
-              </button>
+                {/* Shows the theme you're in, like a status indicator; the tooltip
+                    and accessible name describe what clicking does. */}
+                <button
+                  onClick={toggleTheme}
+                  className={`p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-600 hover:bg-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-300 dark:hover:bg-slate-700/30 flex items-center gap-1.5 ${showThemePulse ? 'animate-theme-pulse' : ''}`}
+                  aria-label={isDarkMode ? 'Dark mode on. Switch to light mode' : 'Light mode on. Switch to dark mode'}
+                  title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                  type="button"
+                >
+                  {isDarkMode ? <Moon className="w-4 h-4" aria-hidden="true" /> : <Sun className="w-4 h-4" aria-hidden="true" />}
+                  <span className="text-xs font-medium hidden sm:inline" aria-hidden="true">
+                    {isDarkMode ? 'Dark' : 'Light'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -464,117 +562,132 @@ export function JiraTicketCreator() {
           </div>
         )}
 
-        {/* Toast notification */}
-        {toastMessage && (
-          <Toast
-            message={toastMessage}
-            type="success"
-            onClose={() => setToastMessage(null)}
-          />
+        {toast && (
+          <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
         )}
 
-        {/* Persistent step indicator */}
-        <div className="flex justify-center">
-          <StepIndicator
-            currentStep={currentStep}
-            onStepClick={handleStepClick}
-            canNavigateForwardTo={step => step === 'review' && !!generatedTicket}
-          />
-        </div>
+        {/* Tab strip on the card's top edge, with the step indicator on the
+            same row. The row is the same height in both modes, so the card
+            never moves when switching — the step row used to exist only in
+            ticket mode and shifted everything below it by 48px. */}
+        <div>
+          {/* items-center so the step labels line up with the tab labels;
+              the strip sits flush on the card below (no gap). */}
+          <div className="relative z-10 flex items-center justify-between gap-3 px-2 -mb-px">
+            <ModeToggle value={mode} onChange={setMode} />
+            {mode === 'ticket' && (
+              <div>
+                <StepIndicator
+                  currentStep={currentStep}
+                  onStepClick={handleStepClick}
+                  canNavigateForwardTo={step => step === 'review' && !!generatedTicket}
+                />
+              </div>
+            )}
+          </div>
+
+        {mode === 'comment' && (
+          <div
+            className="step-enter"
+            id={MODE_PANEL_ID}
+            role="tabpanel"
+            aria-labelledby="mode-tab-comment"
+          >
+            <CommentView
+              commentData={commentData}
+              generatedComment={generatedComment}
+              editedContent={editedComment}
+              isGenerating={isGeneratingComment}
+              providerLoading={providerLoading}
+              error={commentError}
+              copied={commentCopied}
+              contextOpen={commentContextOpen}
+              onContextOpenChange={setCommentContextOpen}
+              onNotesChange={handleCommentNotesChange}
+              onTypeChange={handleCommentTypeChange}
+              onContextChange={handleCommentContextChange}
+              onContentChange={setEditedComment}
+              onGenerate={handleGenerateComment}
+              onCancel={cancelCommentGeneration}
+              onCopy={handleCopyComment}
+              onClear={handleClearComment}
+            />
+          </div>
+        )}
 
         {/* Step views — key forces remount for enter animation */}
-        <div key={currentStep} className="step-enter">
-          {currentStep === 'describe' && (
-            <InputView
-              ticketData={ticketData}
-              isGenerating={isGenerating}
-              selectedProvider={selectedProvider}
-              wordCount={wordCount}
-              draftSaved={draftSaved}
-              providerLoading={providerLoading}
-              error={ticketError}
-              showDraftBanner={showDraftBanner}
-              draftTimestamp={draftTimestamp}
-              advancedOpen={advancedOpen}
-              onAdvancedOpenChange={setAdvancedOpen}
-              showMoreStyles={showMoreStyles}
-              onShowMoreStylesChange={setShowMoreStyles}
-              onDescriptionChange={handleDescriptionChange}
-              onTypeChange={handleTypeChange}
-              onPriorityChange={handlePriorityChange}
-              onTemplateChange={handleTemplateChange}
-              onWritingStyleChange={handleWritingStyleChange}
-              onGenerate={handleGenerateAndTransition}
-              onClearDraft={handleClearDraft}
-              onCancel={cancelGeneration}
-              onRestoreDraft={handleRestoreDraft}
-              onDiscardDraft={handleDiscardDraft}
-              onAddAttachments={handleAddAttachments}
-              onRemoveAttachment={handleRemoveAttachment}
-              onReorderAttachments={handleReorderAttachments}
-              onPreviewAttachment={setPreviewIndex}
-            />
-          )}
+        {mode === 'ticket' && (
+          <div
+            key={currentStep}
+            className="step-enter"
+            id={MODE_PANEL_ID}
+            role="tabpanel"
+            aria-labelledby="mode-tab-ticket"
+          >
+            {currentStep === 'describe' && (
+              <InputView
+                ticketData={ticketData}
+                isGenerating={isGenerating}
+                selectedProvider={selectedProvider}
+                wordCount={wordCount}
+                draftSaved={draftSaved}
+                providerLoading={providerLoading}
+                error={ticketError}
+                showDraftBanner={showDraftBanner}
+                draftTimestamp={draftTimestamp}
+                advancedOpen={advancedOpen}
+                onAdvancedOpenChange={setAdvancedOpen}
+                showMoreStyles={showMoreStyles}
+                onShowMoreStylesChange={setShowMoreStyles}
+                onDescriptionChange={handleDescriptionChange}
+                onTypeChange={handleTypeChange}
+                onPriorityChange={handlePriorityChange}
+                onTemplateChange={handleTemplateChange}
+                onWritingStyleChange={handleWritingStyleChange}
+                onGenerate={handleGenerateAndTransition}
+                onClearDraft={handleClearDraft}
+                onCancel={cancelGeneration}
+                onRestoreDraft={handleRestoreDraft}
+                onDiscardDraft={handleDiscardDraft}
+                onAddAttachments={handleAddAttachments}
+                onRemoveAttachment={handleRemoveAttachment}
+                onReorderAttachments={handleReorderAttachments}
+                onPreviewAttachment={setPreviewIndex}
+              />
+            )}
 
-          {currentStep === 'review' && generatedTicket && (
-            <ReviewView
-              generatedTicket={generatedTicket}
-              editedContent={editedContent}
-              ticketData={ticketData}
-              isGenerating={isGenerating}
-              isRefining={isRefining}
-              error={ticketError}
-              onTitleChange={handleTitleChange}
-              onTypeChange={handleTypeChange}
-              onPriorityChange={handlePriorityChange}
-              onAddLabel={handleAddLabel}
-              onRemoveLabel={handleRemoveLabel}
-              onContentChange={setEditedContent}
-              onRegenerate={handleRegenerateTicket}
-              onCopy={handleCopyToClipboard}
-              onCopyMarkdown={handleCopyAsMarkdown}
-              onRefine={handleRefineTicket}
-              onUndo={undo}
-              canUndo={canUndo}
-              lastActionLabel={lastActionLabel}
-              // Keep the title when going back — it was clearing the
-              // LLM-authored title on every back-navigation.
-              onBackToEdit={() => setCurrentStep('describe')}
-              copiedTarget={copiedTarget}
-              attachments={ticketData.attachments || []}
-              onPreviewAttachment={setPreviewIndex}
-            />
-          )}
-
-          {currentStep === 'done' && (
-            <div className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-8 text-center">
-              <CheckCircle className="w-16 h-16 mx-auto mb-4 text-emerald-500" aria-hidden="true" />
-              <h2 className="text-xl font-bold mb-2 text-slate-800 dark:text-white">
-                Ticket copied
-              </h2>
-              <p className="text-slate-600 dark:text-slate-300 mb-6">
-                It&apos;s on your clipboard as Markdown — paste it into JIRA, or
-                head back to Review to keep refining.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={() => setCurrentStep('review')}
-                  className="py-2.5 px-5 rounded-xl border text-sm font-medium bg-white/30 text-slate-700 border-white/50 hover:bg-white/50 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  type="button"
-                >
-                  Back to Review
-                </button>
-                <button
-                  onClick={handleNewTicket}
-                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 font-semibold shadow-xl hover:shadow-2xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
-                  type="button"
-                >
-                  <Plus className="w-5 h-5" aria-hidden="true" />
-                  Create Another
-                </button>
-              </div>
-            </div>
-          )}
+            {currentStep === 'review' && generatedTicket && (
+              <ReviewView
+                generatedTicket={generatedTicket}
+                editedContent={editedContent}
+                ticketData={ticketData}
+                isGenerating={isGenerating}
+                isRefining={isRefining}
+                error={ticketError}
+                onTitleChange={handleTitleChange}
+                onTypeChange={handleTypeChange}
+                onPriorityChange={handlePriorityChange}
+                onAddLabel={handleAddLabel}
+                onRemoveLabel={handleRemoveLabel}
+                onContentChange={setEditedContent}
+                onRegenerate={handleRegenerateTicket}
+                onCopy={handleCopyToClipboard}
+                onCopyMarkdown={handleCopyAsMarkdown}
+                onRefine={handleRefineTicket}
+                onUndo={undo}
+                canUndo={canUndo}
+                lastActionLabel={lastActionLabel}
+                // Keep the title when going back — it was clearing the
+                // LLM-authored title on every back-navigation.
+                onBackToEdit={() => setCurrentStep('describe')}
+                onNewTicket={handleNewTicket}
+                copiedTarget={copiedTarget}
+                attachments={ticketData.attachments || []}
+                onPreviewAttachment={setPreviewIndex}
+              />
+            )}
+          </div>
+        )}
         </div>
       </div>
 

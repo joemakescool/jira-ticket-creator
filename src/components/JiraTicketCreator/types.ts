@@ -26,7 +26,10 @@ export const DEFAULT_TICKET_DATA: TicketFormData = {
   priority: DEFAULT_TICKET_INPUT.priority ?? 'Medium',
 };
 
-export type AppStep = 'describe' | 'review' | 'done';
+export type AppStep = 'describe' | 'review';
+
+/** Top-level mode: write a new ticket, or a comment on an existing one. */
+export type AppMode = 'ticket' | 'comment';
 
 export type MarkdownAction =
   | 'bold'

@@ -107,6 +107,42 @@ export interface GeneratedTicket {
 }
 
 /**
+ * Kinds of comment the app can write on an existing ticket. A const tuple so the
+ * Zod schema and the UI options derive from the same list.
+ */
+export const COMMENT_TYPES = ['status-update', 'question'] as const;
+
+export type CommentType = (typeof COMMENT_TYPES)[number];
+
+/**
+ * Comment limits — shared so the browser's maxLength and button state match
+ * what the API accepts, rather than letting input fail server-side validation.
+ */
+export const MIN_COMMENT_NOTES_LENGTH = 5;
+export const MAX_COMMENT_NOTES_LENGTH = 5000;
+export const MAX_COMMENT_CONTEXT_LENGTH = 10000;
+
+/**
+ * Input for generating a comment on an existing ticket
+ */
+export interface CommentInput {
+  /** The user's rough notes — what the comment should say. */
+  notes: string;
+  type: CommentType;
+  /** Optional ticket text pasted from JIRA, so the comment can reference it. */
+  ticketContext?: string;
+}
+
+/**
+ * Generated comment output
+ */
+export interface GeneratedComment {
+  content: string;
+  model: string;
+  generatedAt: string;
+}
+
+/**
  * Ticket generation request (API)
  */
 export interface GenerateTicketRequest {
@@ -120,6 +156,14 @@ export interface GenerateTicketRequest {
 export interface RefineTicketRequest {
   currentTicket: string;
   style: RefinementStyle;
+  provider?: string;
+}
+
+/**
+ * Comment generation request (API)
+ */
+export interface GenerateCommentRequest {
+  input: CommentInput;
   provider?: string;
 }
 
@@ -150,4 +194,13 @@ export const DEFAULT_TICKET_INPUT: TicketInput = {
   priority: 'Medium',
   template: 'Basic',
   labels: [],
+};
+
+/**
+ * Default values for comment input
+ */
+export const DEFAULT_COMMENT_INPUT: CommentInput = {
+  notes: '',
+  type: 'status-update',
+  ticketContext: '',
 };

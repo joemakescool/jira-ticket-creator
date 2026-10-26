@@ -17,18 +17,23 @@ import {
   LLMJsonSchema,
 } from "../llm/LLMProvider.js";
 import { ticketLogger as logger } from "../../lib/logger.js";
+import { ApiError } from "../../lib/errors.js";
 import {
   TicketInput,
   TicketType,
   TicketPriority,
   GeneratedTicket,
   RefinementStyle,
+  CommentInput,
+  GeneratedComment,
 } from "../../../src/types/ticket.js";
 import {
   SYSTEM_PROMPT,
+  COMMENT_SYSTEM_PROMPT,
   buildTicketPrompt,
   buildTitlePrompt,
   buildRefinementPrompt,
+  buildCommentPrompt,
   getTypeGuidance,
 } from "../../prompts/ticketPrompts.js";
 
@@ -230,6 +235,49 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
     );
 
     return this.cleanLLMOutput(result.content);
+  }
+
+  /**
+   * Generate a comment on an existing ticket from the user's notes.
+   */
+  async generateComment(
+    input: CommentInput,
+    provider: LLMProvider,
+  ): Promise<GeneratedComment> {
+    const result = await provider.complete(
+      [
+        { role: "system", content: COMMENT_SYSTEM_PROMPT },
+        { role: "user", content: buildCommentPrompt(input) },
+      ],
+      {
+        // A comment is a paragraph or two; this also bounds a runaway reply.
+        maxTokens: 1000,
+        temperature: 0.5,
+        // Rewording notes needs little deliberation, and the user is waiting.
+        effort: "low",
+      },
+    );
+
+    // Not cleanLLMOutput: its leading-## strip removes a ticket's duplicated
+    // title, but a comment has no separate title — if the model ignores the
+    // no-headings rule, that line is real content and must survive.
+    const content = this.stripCodeFences(result.content);
+
+    if (!content) {
+      // A distinct, client-safe failure rather than a generic 500 — the usual
+      // cause is a model spending its whole budget thinking.
+      throw new ApiError(
+        "The AI returned an empty comment. Try again, or switch providers.",
+        502,
+        "provider_empty_response",
+      );
+    }
+
+    return {
+      content,
+      model: result.model,
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   /**
@@ -521,12 +569,15 @@ Return only the improved ticket content as raw markdown, no wrapping.`;
    * even when instructed not to.
    */
   private cleanLLMOutput(raw: string): string {
-    let content = raw.trim();
-    // Strip wrapping code fences (```markdown, ```md, or bare ```)
-    content = content.replace(/^```(?:markdown|md)?\s*\n?([\s\S]*?)\n?\s*```$/s, '$1').trim();
-    // Strip leading title heading
-    content = this.stripLeadingTitle(content);
-    return content;
+    return this.stripLeadingTitle(this.stripCodeFences(raw));
+  }
+
+  /** Strip wrapping code fences (```markdown, ```md, or bare ```). */
+  private stripCodeFences(raw: string): string {
+    return raw
+      .trim()
+      .replace(/^```(?:markdown|md)?\s*\n?([\s\S]*?)\n?\s*```$/s, '$1')
+      .trim();
   }
 
   /**

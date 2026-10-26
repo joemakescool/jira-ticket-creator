@@ -13,7 +13,6 @@ import {
   CheckSquare,
   Link2,
   Save,
-  Type,
   Plus,
   X,
   FileText,
@@ -161,8 +160,6 @@ export const DescriptionEditor = memo(function DescriptionEditor({
 }: DescriptionEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const [showToolbar, setShowToolbar] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [pasteToast, setPasteToast] = useState<string | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -218,15 +215,6 @@ export const DescriptionEditor = memo(function DescriptionEditor({
   const reorderableImageCount = onReorderAttachments
     ? attachments.filter(isImageAttachment).length
     : 0;
-
-  const handleFocus = useCallback(() => {
-    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
-    setShowToolbar(true);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    blurTimeoutRef.current = setTimeout(() => setShowToolbar(false), 150);
-  }, []);
 
   const insertMarkdown = useCallback(
     (action: MarkdownAction) => {
@@ -426,43 +414,6 @@ export const DescriptionEditor = memo(function DescriptionEditor({
         </div>
       </div>
 
-      {/* Collapsed Format button / Expanded Toolbar */}
-      {showToolbar ? (
-        <div
-          className="flex flex-wrap items-center gap-1 p-1.5 mb-2 rounded-lg border bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 toolbar-enter"
-          role="toolbar"
-          aria-label="Text formatting"
-        >
-          {toolbarButtons.map(({ action, icon: Icon, label }) => (
-            <button
-              key={action}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => insertMarkdown(action)}
-              className="p-1.5 rounded hover:bg-slate-500/20 transition-all text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label={label}
-              // Icon-only buttons need a visible hover hint, not just a
-              // screen-reader label.
-              title={label}
-              type="button"
-            >
-              <Icon className="w-4 h-4" aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      ) : (
-        <button
-          onClick={() => {
-            textareaRef.current?.focus();
-          }}
-          className="flex items-center gap-1 mb-2 px-2 py-1 rounded-lg text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-white/20 dark:border-slate-700/50 hover:bg-white/10 dark:hover:bg-slate-700/20 transition-all"
-          type="button"
-          aria-label="Show formatting toolbar"
-        >
-          <Type className="w-3.5 h-3.5" aria-hidden="true" />
-          Format
-        </button>
-      )}
-
       {/* One composite input: the border, background and focus ring live on this
           container so the textarea, any attachments, and the attach control read
           as a single field — the way a chat composer does. `focus-within` is
@@ -489,8 +440,6 @@ export const DescriptionEditor = memo(function DescriptionEditor({
             onChange(e.target.value);
             autoGrow(e.target);
           }}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
           onPaste={handlePaste}
           placeholder={
             placeholder || "Describe the problem, feature request, or task..."
@@ -511,47 +460,72 @@ export const DescriptionEditor = memo(function DescriptionEditor({
           }
         />
 
-        {/* Footer control row, inside the box. Icon only — the box itself is
-            the drop target, so the affordance needs no label. */}
-        {onAddAttachments && (
-          <div className="flex items-center gap-1 px-2 pb-2">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={attachments.length >= MAX_ATTACHMENTS || isReadingFiles}
-              className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-500/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="Attach files"
-              title={`Attach or drop files — images, PDFs and documents up to ${formatFileSize(MAX_FILE_SIZE)} each, ${MAX_ATTACHMENTS} max`}
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  processFiles(e.target.files);
-                  e.target.value = "";
-                }
-              }}
-              className="hidden"
-            />
-            {isReadingFiles && (
-              <span
-                className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400"
-                role="status"
-                aria-live="polite"
+        {/* Footer control row, inside the box: attach, then formatting. The
+            formatting buttons used to sit in a row above the field that
+            appeared on focus, so the field jumped down whenever it was
+            clicked; here they're always present and nothing moves. */}
+        <div className="flex flex-wrap items-center gap-0.5 px-2 pb-2">
+          {onAddAttachments && (
+            <>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attachments.length >= MAX_ATTACHMENTS || isReadingFiles}
+                className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-500/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Attach files"
+                title={`Attach or drop files — images, PDFs and documents up to ${formatFileSize(MAX_FILE_SIZE)} each, ${MAX_ATTACHMENTS} max`}
               >
-                <span
-                  className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"
-                  aria-hidden="true"
-                />
-                Reading files…
-              </span>
-            )}
+                <Plus className="w-4 h-4" aria-hidden="true" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    processFiles(e.target.files);
+                    e.target.value = "";
+                  }
+                }}
+                className="hidden"
+              />
+              <span className="w-px h-4 mx-1 bg-slate-500/30" aria-hidden="true" />
+            </>
+          )}
+
+          <div className="flex items-center gap-0.5" role="toolbar" aria-label="Text formatting">
+            {toolbarButtons.map(({ action, icon: Icon, label }) => (
+              <button
+                key={action}
+                // Keeps focus (and the selection) in the textarea while clicking.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insertMarkdown(action)}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-500/15 dark:text-slate-400 dark:hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label={label}
+                // Icon-only buttons need a visible hover hint, not just a
+                // screen-reader label.
+                title={label}
+                type="button"
+              >
+                <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            ))}
           </div>
-        )}
+
+          {isReadingFiles && (
+            <span
+              className="ml-2 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400"
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                className="animate-spin rounded-full h-3 w-3 border-b-2 border-current"
+                aria-hidden="true"
+              />
+              Reading files…
+            </span>
+          )}
+        </div>
 
         {/* Drag overlay */}
         {isDragging && (

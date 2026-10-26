@@ -7,6 +7,7 @@ It runs entirely on your machine: a React frontend served by an Express backend 
 ## Features
 
 - **Two-step workflow** — Describe your task, then review and refine the generated ticket
+- **Comment mode** — Turn rough notes into a status update or clarifying question for an existing ticket, optionally using the pasted ticket text as context
 - **Multiple LLM providers** — Claude, OpenAI, or Ollama (local). Switch between them at runtime
 - **Refinement styles** — Make generated content more concise, detailed, technical, etc.
 - **Draft persistence** — Work-in-progress is saved to localStorage automatically
@@ -142,7 +143,7 @@ jira-ticket-creator/
 │   ├── index.ts                  # Server setup, middleware, static serving
 │   ├── routes/
 │   │   ├── index.ts              # Route aggregator
-│   │   └── tickets.ts            # POST /api/tickets/generate, /refine
+│   │   └── tickets.ts            # POST /api/tickets/generate, /refine, /comment
 │   ├── helpers/
 │   │   └── provider.ts           # Resolves provider name → instance
 │   ├── middleware/

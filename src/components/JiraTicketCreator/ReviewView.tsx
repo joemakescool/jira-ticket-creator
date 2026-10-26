@@ -14,18 +14,16 @@ import {
   Code2,
   Undo2,
   Save,
-  Maximize2,
-  Minimize2,
   FileText as FileTextIcon,
   File as FileIcon,
   AlertCircle,
   X,
   Sparkles,
+  Plus,
 } from "lucide-react";
 import { TicketTypeSelector } from "./TicketTypeSelector";
 import { PrioritySelector } from "./PrioritySelector";
 import { MarkdownContent } from "../ui/MarkdownContent";
-import { getTicketMetadataFields } from "../../utils/ticketExport";
 import type { GeneratedTicket, Attachment } from "../../types/ticket";
 import { isImageAttachment } from "../../types/ticket";
 import type { TicketFormData } from "./types";
@@ -51,12 +49,23 @@ interface ReviewViewProps {
   onCopyMarkdown: () => void;
   onRefine: (style: string) => void;
   onBackToEdit: () => void;
+  onNewTicket: () => void;
   onUndo: () => void;
   canUndo: boolean;
   lastActionLabel: string | null;
   copiedTarget: CopyTarget;
   attachments?: Attachment[];
   onPreviewAttachment?: (index: number) => void;
+}
+
+/**
+ * Grow a textarea to fit its content, so editing scrolls with the page rather
+ * than inside a fixed-height box. Doubles as a callback ref to size it on mount.
+ */
+function fitToContent(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
 }
 
 const REFINEMENT_OPTIONS: {
@@ -90,6 +99,7 @@ export const ReviewView = memo(function ReviewView({
   onCopyMarkdown,
   onRefine,
   onBackToEdit,
+  onNewTicket,
   onUndo,
   canUndo,
   lastActionLabel,
@@ -100,7 +110,6 @@ export const ReviewView = memo(function ReviewView({
   const [isEditMode, setIsEditMode] = useState(false);
   const [draftContent, setDraftContent] = useState("");
   const [viewMode, setViewMode] = useState<"rendered" | "raw">("rendered");
-  const [isExpanded, setIsExpanded] = useState(false);
   const [labelInput, setLabelInput] = useState("");
   const [labelError, setLabelError] = useState<string | null>(null);
   const [titleCopied, setTitleCopied] = useState(false);
@@ -124,15 +133,6 @@ export const ReviewView = memo(function ReviewView({
       ? "Labels"
       : null,
   ].filter((field): field is string => field !== null);
-
-  /** The header that will be copied, derived from the same source as the export. */
-  const metadataFields = getTicketMetadataFields({
-    title: ticketData.title,
-    type: ticketData.type,
-    priority: ticketData.priority,
-    labels: ticketData.labels,
-    content: displayContent,
-  });
 
   const handleAddLabel = useCallback(() => {
     const trimmed = labelInput.trim().toLowerCase();
@@ -197,16 +197,27 @@ export const ReviewView = memo(function ReviewView({
   return (
     <div className="space-y-4">
       <section className="bg-white/20 backdrop-blur-xl border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50 rounded-2xl shadow-2xl border p-6 space-y-5">
-        {/* Back button */}
-        <button
-          onClick={onBackToEdit}
-          className="p-1.5 rounded-lg border transition-all bg-white/20 border-white/30 text-slate-500 hover:text-slate-700 hover:bg-white/40 dark:bg-slate-800/20 dark:border-slate-700/50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/30"
-          aria-label="Back to description"
-          title="Back to description"
-          type="button"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
+        {/* Navigation — labelled, so neither reads as an unexplained icon. */}
+        <div className="flex items-center justify-between gap-2 -mt-1">
+          <button
+            onClick={onBackToEdit}
+            className="py-1 px-2 -ml-2 rounded-lg flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-white/40 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-700/30 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Back to your description"
+            type="button"
+          >
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            Back
+          </button>
+          <button
+            onClick={onNewTicket}
+            className="py-1 px-2 -mr-2 rounded-lg flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-white/40 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-700/30 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Clear everything and start a new ticket"
+            type="button"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            New ticket
+          </button>
+        </div>
 
         {/* Title - editable with copy button */}
         <div>
@@ -332,13 +343,8 @@ export const ReviewView = memo(function ReviewView({
           )}
         </div>
 
-        {/* Says where these controls actually land — they're copied with the
-            ticket, but they don't re-derive the body on their own. */}
-        <p className="text-xs text-slate-600 dark:text-slate-400">
-          Title, type, priority and labels are copied with the ticket. Changing
-          them doesn&apos;t rewrite the body — regenerate if you want it to match.
-        </p>
-
+        {/* Metadata edits don't rewrite the body. Rather than a permanent
+            paragraph saying so, this only appears once they've drifted. */}
         {changedMetadata.length > 0 && (
           <div
             className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border text-xs bg-amber-50/70 border-amber-300 text-amber-900 dark:bg-amber-900/20 dark:border-amber-700/50 dark:text-amber-200"
@@ -435,25 +441,7 @@ export const ReviewView = memo(function ReviewView({
             </>
           )}
 
-          {/* Body only — no metadata header. The full ticket is the footer's
-              primary action. */}
-          <button
-            onClick={onCopy}
-            className="py-1.5 px-3 rounded-lg flex items-center gap-1.5 text-sm border bg-white/30 text-slate-700 border-white/50 hover:bg-white/50 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-            type="button"
-            title="Copy just the ticket body, without the title and metadata header"
-          >
-            {copiedTarget === "plain" ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            ) : (
-              <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-            )}
-            {copiedTarget === "plain" ? "Copied!" : "Copy body"}
-          </button>
-
-          <div className="flex-1" />
-
-          {canUndo && (
+          {canUndo && !isEditMode && (
             <button
               onClick={onUndo}
               className="py-1.5 px-3 rounded-lg flex items-center gap-1.5 text-sm border border-transparent text-blue-700 hover:bg-blue-500/10 dark:text-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -465,57 +453,27 @@ export const ReviewView = memo(function ReviewView({
             </button>
           )}
 
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded-lg border bg-white/30 text-slate-700 border-white/50 hover:bg-white/50 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-            type="button"
-            aria-pressed={isExpanded}
-            aria-label={isExpanded ? "Collapse ticket body" : "Expand ticket body"}
-            title={isExpanded ? "Collapse body" : "Expand body"}
-          >
-            {isExpanded ? (
-              <Minimize2 className="w-3.5 h-3.5" aria-hidden="true" />
-            ) : (
-              <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
-            )}
-          </button>
         </div>
 
-        {/* Content display. The metadata header sits outside the editable body
-            so edits can never absorb it — it's driven by the controls above. */}
+        {/* Body only. Title and metadata are edited above and added at copy
+            time, so they can't be absorbed by body edits. It scrolls with the
+            page: it used to be a capped inner scroll box inside a scrolling
+            page, with an Expand button whose only job was lifting the cap. */}
         <div className="rounded-xl border bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50">
-          {!isEditMode && (
-            <div className="px-5 pt-5 pb-3 border-b border-white/30 dark:border-slate-700/50">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">
-                Copied with the ticket
-              </p>
-              <p className="text-base font-bold text-slate-900 dark:text-white mb-1">
-                {ticketData.title || "Untitled Ticket"}
-              </p>
-              <dl className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
-                {metadataFields.map(([key, value]) => (
-                  <div key={key} className="flex gap-1.5">
-                    <dt className="font-semibold">{key}:</dt>
-                    <dd className="min-w-0 break-words">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          )}
           {isEditMode ? (
             <textarea
               value={draftContent}
-              onChange={(e) => setDraftContent(e.target.value)}
-              className={`w-full p-5 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus-glow border-2 border-transparent bg-white/40 text-slate-800 dark:bg-slate-800/40 dark:text-white resize-y ${
-                isExpanded ? "min-h-[75vh]" : "min-h-[28rem]"
-              }`}
+              onChange={(e) => {
+                setDraftContent(e.target.value);
+                fitToContent(e.target);
+              }}
+              ref={fitToContent}
+              className="w-full min-h-[16rem] p-5 text-sm whitespace-pre-wrap font-mono rounded-xl focus:outline-none focus-glow border-2 border-transparent bg-white/40 text-slate-800 dark:bg-slate-800/40 dark:text-white resize-none overflow-hidden"
               aria-label="Ticket body (markdown)"
               placeholder="Edit your ticket here..."
             />
           ) : (
-            <div
-              className={`p-5 ${isExpanded ? "" : "max-h-[36rem]"} overflow-y-auto`}
-            >
+            <div className="p-5">
               {viewMode === "rendered" ? (
                 <MarkdownContent content={displayContent} />
               ) : (
@@ -580,12 +538,11 @@ export const ReviewView = memo(function ReviewView({
 
         {/* Refinement Options */}
         <div className="p-3 rounded-xl border bg-white/20 border-white/30 dark:bg-slate-800/20 dark:border-slate-700/50">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-            Refine Ticket
-          </p>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 mb-2">
-            Each option sends the ticket back to the AI for a rewrite and replaces
-            the body. You can undo afterwards.
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
+            Refine with AI{" "}
+            <span className="font-normal text-xs text-slate-600 dark:text-slate-400">
+              — rewrites the body; undo is available
+            </span>
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
             {REFINEMENT_OPTIONS.map(({ style, label, hint }) => {
@@ -616,27 +573,24 @@ export const ReviewView = memo(function ReviewView({
         </div>
       </section>
 
-      {/* Footer action bar — the only filled accent button on the screen. */}
-      <section className="bg-white/30 backdrop-blur-xl border-white/40 dark:bg-slate-800/30 dark:border-slate-700/60 rounded-2xl shadow-2xl border p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[12rem]">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-              Finished reviewing?
-            </p>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Copies the title, metadata and body as Markdown, ready to paste
-              into JIRA.
-            </p>
-          </div>
-
+      {/* Footer action bar — every way out of this screen lives here, and the
+          full-ticket copy is the only filled accent button. Sticky so Copy is
+          always in reach; it used to start well below the fold. Opaque-ish
+          background so body text scrolling underneath stays unreadable
+          through it, and z-30 keeps it above the content but under the toast. */}
+      <section className="sticky bottom-4 z-30 bg-white/80 backdrop-blur-xl border-white/40 dark:bg-slate-800/85 dark:border-slate-700/60 rounded-2xl shadow-2xl border p-2.5 sm:p-4">
+        {/* One row on phones too — a wrapped two-row bar took ~15% of the
+            screen. Regenerate goes icon-only and the attribution is hidden. */}
+        <div className="flex items-center gap-2">
           {/* Quiet, destructive-intent action — the most expensive button on the
               screen should not also be the most prominent. */}
           <button
             onClick={handleRegenerateClick}
             disabled={isGenerating || isEditMode || !displayContent}
-            className="py-2.5 px-4 rounded-xl flex items-center gap-2 text-sm border border-transparent text-slate-600 hover:text-amber-700 hover:border-amber-500/50 hover:bg-amber-500/10 dark:text-slate-300 dark:hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="py-2.5 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm border border-transparent text-slate-600 hover:text-amber-700 hover:border-amber-500/50 hover:bg-amber-500/10 dark:text-slate-300 dark:hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500"
             type="button"
             title="Discard this version and generate a new one"
+            aria-label="Regenerate"
           >
             {isGenerating ? (
               <span
@@ -646,14 +600,47 @@ export const ReviewView = memo(function ReviewView({
             ) : (
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
             )}
-            Regenerate
+            <span className="hidden sm:inline" aria-hidden="true">Regenerate</span>
+          </button>
+
+          <p className="flex-1 min-w-0 text-xs text-slate-600 dark:text-slate-400">
+            {isEditMode ? (
+              <span className="text-amber-700 dark:text-amber-300">
+                Save or cancel your edits to copy.
+              </span>
+            ) : (
+              <span className="hidden sm:inline">
+                Generated by{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {generatedTicket.metadata.model}
+                </span>
+              </span>
+            )}
+          </p>
+
+          {/* Both copies side by side, so the difference is visible at a glance
+              rather than split between the toolbar and the footer. */}
+          <button
+            onClick={onCopy}
+            disabled={isEditMode || !displayContent}
+            className="py-2.5 px-3 sm:px-4 rounded-xl flex items-center gap-2 text-sm font-medium whitespace-nowrap border bg-white/30 text-slate-700 border-white/50 hover:bg-white/50 dark:bg-slate-800/40 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+            type="button"
+            title="Copy the description only — for pasting into an existing JIRA ticket"
+          >
+            {copiedTarget === "plain" ? (
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            ) : (
+              <Copy className="w-4 h-4" aria-hidden="true" />
+            )}
+            {copiedTarget === "plain" ? "Copied!" : "Copy body"}
           </button>
 
           <button
             onClick={onCopyMarkdown}
             disabled={isEditMode || !displayContent}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white py-2.5 px-5 rounded-xl flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white py-2.5 px-4 sm:px-5 rounded-xl flex items-center gap-2 font-semibold whitespace-nowrap shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
             type="button"
+            title="Copy title, type, priority, labels and description as Markdown"
           >
             {copiedTarget === "markdown" ? (
               <Check className="w-4 h-4" aria-hidden="true" />
@@ -663,21 +650,7 @@ export const ReviewView = memo(function ReviewView({
             {copiedTarget === "markdown" ? "Copied!" : "Copy ticket"}
           </button>
         </div>
-
-        {isEditMode && (
-          <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-            Save or cancel your edits to continue.
-          </p>
-        )}
       </section>
-
-      {/* Provider / model attribution */}
-      <p className="text-xs text-center text-slate-600 dark:text-slate-400">
-        Generated by{" "}
-        <span className="font-medium text-slate-700 dark:text-slate-300">
-          {generatedTicket.metadata.model}
-        </span>
-      </p>
     </div>
   );
 });

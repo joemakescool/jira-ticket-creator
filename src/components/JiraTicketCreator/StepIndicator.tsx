@@ -7,7 +7,7 @@ const STEPS: { key: AppStep; label: string }[] = [
   { key: 'review', label: 'Review' },
 ];
 
-const stepOrder: Record<AppStep, number> = { describe: 0, review: 1, done: 2 };
+const stepOrder: Record<AppStep, number> = { describe: 0, review: 1 };
 
 interface StepIndicatorProps {
   currentStep: AppStep;
@@ -49,17 +49,22 @@ export const StepIndicator = memo(function StepIndicator({
             {i > 0 && (
               <div
                 className={`w-4 h-px transition-colors duration-300 ${
-                  isCompleted ? 'bg-emerald-500' : 'bg-white/30 dark:bg-slate-600'
+                  isCompleted ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
                 }`}
               />
             )}
             <button
               onClick={() => isClickable && onStepClick?.(step.key)}
               disabled={!isClickable}
+              // No opacity fade for unavailable steps: it stacked on the muted
+              // text colour (~2.9:1 in dark mode) and also dimmed the *current*
+              // step, which is disabled only because you're already on it.
               className={`flex items-center gap-1 px-2 py-1.5 -mx-1 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 isClickable
                   ? 'cursor-pointer hover:bg-white/20 dark:hover:bg-slate-700/30'
-                  : 'cursor-not-allowed opacity-60'
+                  : isActive
+                    ? 'cursor-default'
+                    : 'cursor-not-allowed'
               }`}
               aria-label={`${step.label}${stateSuffix}`}
               aria-current={isActive ? 'step' : undefined}
@@ -76,16 +81,19 @@ export const StepIndicator = memo(function StepIndicator({
                   className={`w-2 h-2 rounded-full transition-all duration-300 ${
                     isActive
                       ? 'bg-blue-500 ring-2 ring-blue-500/30'
-                      : 'bg-white/30 dark:bg-slate-600'
+                      : 'bg-slate-400 dark:bg-slate-500'
                   }`}
                 />
               )}
+              {/* Hidden on phones — it shares a row with the mode tabs, and
+                  the full labels didn't fit. The button's aria-label still
+                  names each step. */}
               <span
-                className={`text-sm font-medium transition-colors duration-300 ${
+                className={`hidden sm:inline text-sm font-medium transition-colors duration-300 ${
                   isCompleted
                     ? 'text-emerald-700 dark:text-emerald-400'
                     : isActive
-                      ? 'text-blue-700 dark:text-blue-400'
+                      ? 'text-blue-700 dark:text-blue-300'
                       : 'text-slate-600 dark:text-slate-400'
                 }`}
               >
