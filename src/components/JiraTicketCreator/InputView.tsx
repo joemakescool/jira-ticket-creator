@@ -23,7 +23,7 @@ const PROVIDER_LOGOS: Record<
   string,
   { Logo: React.ComponentType<{ className?: string }>; animation: string }
 > = {
-  claude: { Logo: ClaudeLogo, animation: "animate-slow-spin" },
+  claude: { Logo: ClaudeLogo, animation: "animate-claude-breathe" },
   openai: { Logo: OpenAILogo, animation: "animate-breathe" },
   ollama: { Logo: OllamaLogo, animation: "animate-gentle-bounce" },
 };
@@ -425,7 +425,9 @@ export const InputView = memo(function InputView({
             const provider = PROVIDER_LOGOS[selectedProvider];
             const logoEl = provider ? (
               <span className={isGenerating ? provider.animation : ""}>
-                <provider.Logo className="w-5 h-5" />
+                <provider.Logo
+                  className={isGenerating ? "w-6 h-6" : "w-5 h-5"}
+                />
               </span>
             ) : (
               <div

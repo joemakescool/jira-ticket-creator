@@ -1,0 +1,96 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e7]:
+      - heading "JIRA Ticket Creator" [level=1] [ref=e13]
+      - generic [ref=e14]:
+        - 'button "AI provider: Claude. Change provider" [ref=e16] [cursor=pointer]':
+          - img "Claude" [ref=e18]
+          - generic [ref=e21]: Claude
+        - button "Light mode on. Switch to dark mode" [ref=e24] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e31]: Light
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - tablist "What do you want to write?" [ref=e34]:
+        - tab "Ticket" [selected] [ref=e35] [cursor=pointer]
+        - tab "Comment" [ref=e40] [cursor=pointer]
+      - navigation "Progress steps" [ref=e44]:
+        - button "Describe (current step)" [disabled] [ref=e1196]:
+          - generic [ref=e48]: Describe
+        - button "Review (click to return to your generated ticket)" [ref=e1197] [cursor=pointer]:
+          - generic [ref=e53]: Review
+    - tabpanel "Ticket" [ref=e1198]:
+      - region "Create ticket" [ref=e1199]:
+        - generic [ref=e1201]:
+          - generic [ref=e1202]:
+            - generic [ref=e1203]: Description
+            - generic [ref=e1204]: 54 chars • 9 words
+          - generic [ref=e1206]:
+            - textbox "Description" [ref=e1207]:
+              - /placeholder: Describe the task to be completed...
+              - text: Test the new loading animation on the generate button.
+            - generic [ref=e1208]:
+              - button "Attach files" [ref=e1209] [cursor=pointer]
+              - toolbar "Text formatting" [ref=e1212]:
+                - button "Bold (Ctrl+B)" [ref=e1213] [cursor=pointer]
+                - button "Italic (Ctrl+I)" [ref=e1217] [cursor=pointer]
+                - button "Inline code" [ref=e1220] [cursor=pointer]
+                - button "Heading" [ref=e1224] [cursor=pointer]
+                - button "Bullet list" [ref=e1228] [cursor=pointer]
+                - button "Checkbox" [ref=e1230] [cursor=pointer]
+                - button "Link" [ref=e1234] [cursor=pointer]
+        - status [ref=e1238]: Analyzing your description
+        - generic [ref=e1239]:
+          - generic [ref=e1240]:
+            - generic [ref=e1241]: Type
+            - radiogroup "Type" [ref=e1242]:
+              - radio "Task ticket type" [checked] [ref=e1243] [cursor=pointer]:
+                - generic [ref=e1247]: Task
+              - radio "Story ticket type" [ref=e1248] [cursor=pointer]:
+                - generic [ref=e1252]: Story
+              - radio "Bug ticket type" [ref=e1253] [cursor=pointer]:
+                - generic [ref=e1263]: Bug
+              - radio "Spike ticket type" [ref=e1264] [cursor=pointer]:
+                - generic [ref=e1267]: Spike
+              - radio "Epic ticket type" [ref=e1268] [cursor=pointer]:
+                - generic [ref=e1272]: Epic
+          - generic [ref=e1274]:
+            - generic [ref=e1275]: Priority
+            - radiogroup "Priority" [ref=e1276]:
+              - radio "Low priority" [ref=e1277] [cursor=pointer]:
+                - generic [ref=e1281]: Low
+              - radio "Medium priority" [checked] [ref=e1282] [cursor=pointer]:
+                - generic [ref=e1285]: Medium
+              - radio "High priority" [ref=e1286] [cursor=pointer]:
+                - generic [ref=e1289]: High
+              - radio "Critical priority" [ref=e1290] [cursor=pointer]:
+                - generic [ref=e1293]: Critical
+        - generic [ref=e1294]:
+          - button "Advanced Options" [ref=e1295] [cursor=pointer]
+          - generic [ref=e1301]:
+            - generic [ref=e1302]:
+              - generic [ref=e1303]: Template Style
+              - radiogroup [ref=e1304]:
+                - radio [checked] [ref=e1305] [cursor=pointer]:
+                  - generic [ref=e1306]: Basic
+                  - generic [ref=e1310]: Context, outcome, acceptance criteria
+                - radio [ref=e1311] [cursor=pointer]:
+                  - generic [ref=e1312]: Detailed
+                  - generic [ref=e1319]: Adds problem, solution, scope, risks
+            - generic [ref=e1320]:
+              - generic [ref=e1321]: Writing Style
+              - radiogroup [ref=e1322]:
+                - radio [checked] [ref=e1323] [cursor=pointer]:
+                  - generic [ref=e1326]: Balanced
+                - radio [ref=e1327] [cursor=pointer]:
+                  - generic [ref=e1329]: Concise
+                - radio [ref=e1330] [cursor=pointer]:
+                  - generic [ref=e1335]: Technical
+                - radio [ref=e1336] [cursor=pointer]:
+                  - generic [ref=e1340]: User Story
+              - button [ref=e1341] [cursor=pointer]: More styles
+        - generic [ref=e1345]:
+          - button "Claude Analyzing your description" [disabled] [ref=e1357]:
+            - img "Claude" [ref=e1348]
+            - generic [ref=e1358]: Analyzing your description
+            - generic [aria-hidden] [ref=e1351]: ...
+          - button "Cancel" [ref=e1359] [cursor=pointer]

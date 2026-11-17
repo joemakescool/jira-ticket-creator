@@ -156,14 +156,6 @@
 }
 
 /* Provider logo animations during generation */
-@keyframes slow-spin {
-  from { transform: rotate(0deg) scale(1); }
-  25% { transform: rotate(90deg) scale(1.15); }
-  50% { transform: rotate(180deg) scale(1); }
-  75% { transform: rotate(270deg) scale(1.15); }
-  to { transform: rotate(360deg) scale(1); }
-}
-
 @keyframes breathe {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.15); opacity: 0.8; }
@@ -174,9 +166,23 @@
   50% { transform: translateY(-2px); }
 }
 
-.animate-slow-spin {
-  animation: slow-spin 4s ease-in-out infinite;
-  filter: drop-shadow(0 0 4px rgba(212, 128, 90, 0.6));
+/* Claude mark: a simple pulse of light — scales and glows up together, then
+   back down. Uniform scaling keeps the mark's asymmetric shape intact (no
+   skew/distortion), so it reads cleanly at every frame instead of warping. */
+@keyframes claude-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px rgba(217, 119, 87, 0.4));
+  }
+  50% {
+    transform: scale(1.22);
+    filter: drop-shadow(0 0 9px rgba(217, 119, 87, 0.85));
+  }
+}
+
+.animate-claude-breathe {
+  display: inline-flex;
+  animation: claude-pulse 1.3s ease-in-out infinite;
 }
 
 .animate-breathe {

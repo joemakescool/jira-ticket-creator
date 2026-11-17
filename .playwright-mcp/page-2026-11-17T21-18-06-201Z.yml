@@ -1,0 +1,97 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e7]:
+      - heading "JIRA Ticket Creator" [level=1] [ref=e13]
+      - generic [ref=e14]:
+        - 'button "AI provider: Claude. Change provider" [ref=e16] [cursor=pointer]':
+          - img "Claude" [ref=e18]
+          - generic [ref=e21]: Claude
+        - button "Light mode on. Switch to dark mode" [ref=e24] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e31]: Light
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - tablist "What do you want to write?" [ref=e34]:
+        - tab "Ticket" [selected] [ref=e35] [cursor=pointer]
+        - tab "Comment" [ref=e40] [cursor=pointer]
+      - navigation "Progress steps" [ref=e44]:
+        - button "Describe (current step)" [disabled] [ref=e46]:
+          - generic [ref=e48]: Describe
+        - button "Review (not available yet)" [disabled] [ref=e51]:
+          - generic [ref=e53]: Review
+    - tabpanel "Ticket" [ref=e54]:
+      - region "Create ticket" [ref=e55]:
+        - generic [ref=e57]:
+          - generic [ref=e58]:
+            - generic [ref=e59]: Description
+            - generic [ref=e60]: 0 chars • 0 words
+          - generic [ref=e62]:
+            - textbox "Description" [ref=e63]:
+              - /placeholder: Describe the task to be completed...
+            - generic [ref=e64]:
+              - button "Attach files" [ref=e65] [cursor=pointer]
+              - toolbar "Text formatting" [ref=e68]:
+                - button "Bold (Ctrl+B)" [ref=e69] [cursor=pointer]
+                - button "Italic (Ctrl+I)" [ref=e73] [cursor=pointer]
+                - button "Inline code" [ref=e76] [cursor=pointer]
+                - button "Heading" [ref=e80] [cursor=pointer]
+                - button "Bullet list" [ref=e84] [cursor=pointer]
+                - button "Checkbox" [ref=e86] [cursor=pointer]
+                - button "Link" [ref=e90] [cursor=pointer]
+        - status [ref=e94]
+        - generic [ref=e95]:
+          - generic [ref=e96]:
+            - generic [ref=e97]: Type
+            - radiogroup "Type" [ref=e98]:
+              - radio "Task ticket type" [checked] [ref=e99] [cursor=pointer]:
+                - generic [ref=e103]: Task
+              - radio "Story ticket type" [ref=e104] [cursor=pointer]:
+                - generic [ref=e108]: Story
+              - radio "Bug ticket type" [ref=e109] [cursor=pointer]:
+                - generic [ref=e119]: Bug
+              - radio "Spike ticket type" [ref=e120] [cursor=pointer]:
+                - generic [ref=e123]: Spike
+              - radio "Epic ticket type" [ref=e124] [cursor=pointer]:
+                - generic [ref=e128]: Epic
+          - generic [ref=e130]:
+            - generic [ref=e131]: Priority
+            - radiogroup "Priority" [ref=e132]:
+              - radio "Low priority" [ref=e133] [cursor=pointer]:
+                - generic [ref=e137]: Low
+              - radio "Medium priority" [checked] [ref=e138] [cursor=pointer]:
+                - generic [ref=e141]: Medium
+              - radio "High priority" [ref=e142] [cursor=pointer]:
+                - generic [ref=e145]: High
+              - radio "Critical priority" [ref=e146] [cursor=pointer]:
+                - generic [ref=e149]: Critical
+        - generic [ref=e150]:
+          - button "Advanced Options" [ref=e151] [cursor=pointer]
+          - generic [ref=e157]:
+            - generic [ref=e158]:
+              - generic [ref=e159]: Template Style
+              - radiogroup [ref=e160]:
+                - radio [checked] [ref=e161] [cursor=pointer]:
+                  - generic [ref=e162]: Basic
+                  - generic [ref=e166]: Context, outcome, acceptance criteria
+                - radio [ref=e167] [cursor=pointer]:
+                  - generic [ref=e168]: Detailed
+                  - generic [ref=e175]: Adds problem, solution, scope, risks
+            - generic [ref=e176]:
+              - generic [ref=e177]: Writing Style
+              - radiogroup [ref=e178]:
+                - radio [checked] [ref=e179] [cursor=pointer]:
+                  - generic [ref=e182]: Balanced
+                - radio [ref=e183] [cursor=pointer]:
+                  - generic [ref=e185]: Concise
+                - radio [ref=e186] [cursor=pointer]:
+                  - generic [ref=e191]: Technical
+                - radio [ref=e192] [cursor=pointer]:
+                  - generic [ref=e196]: User Story
+              - button [ref=e197] [cursor=pointer]: More styles
+        - generic [ref=e200]:
+          - generic [ref=e201]:
+            - button "Claude Generate Ticket Ctrl+Enter" [disabled] [ref=e202]:
+              - img "Claude" [ref=e204]
+              - text: Generate Ticket
+              - generic [ref=e207]: Ctrl+Enter
+            - button "Clear" [disabled] [ref=e209]
+          - paragraph [ref=e213]: Add a description above to generate a ticket.
